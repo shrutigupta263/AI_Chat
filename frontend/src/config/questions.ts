@@ -8,20 +8,8 @@ export interface Question {
 }
 
 // Questions that don't need AI suggestions (simple dropdowns, yes/no questions)
-export const QUESTIONS_WITHOUT_AI_SUGGESTIONS = [
-  'platform',
-  'aspect_ratio',
-  'shipping_product',
-  'creator_stipend',
-  'account_type',
-  'gender',
-  'age_range',
-  'country',
-  'state',
-  'city',
-  'ethnicity',
-  'adlib_rules',
-];
+// Empty array means AI suggestions will be shown for all questions
+export const QUESTIONS_WITHOUT_AI_SUGGESTIONS: string[] = [];
 
 export const FORM_QUESTIONS: Question[] = [
   // SECTION 1 — Product / Service Education

@@ -26,12 +26,28 @@ export default function QuestionBlock({
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [answerSuggestion, setAnswerSuggestion] = useState<string>('');
   const [loadingAnswerSuggestion, setLoadingAnswerSuggestion] = useState(false);
+  const [errorSuggestions, setErrorSuggestions] = useState<string>('');
+  const [errorAnswerSuggestion, setErrorAnswerSuggestion] = useState<string>('');
 
   // Check if this question should show AI suggestions
   const shouldShowAISuggestions = !QUESTIONS_WITHOUT_AI_SUGGESTIONS.includes(question.id);
+  
+  // Debug logging
+  useEffect(() => {
+    if (isActive) {
+      console.log('QuestionBlock Debug:', {
+        questionId: question.id,
+        questionTitle: question.title,
+        shouldShowAISuggestions,
+        QUESTIONS_WITHOUT_AI_SUGGESTIONS
+      });
+    }
+  }, [isActive, question.id, question.title, shouldShowAISuggestions]);
 
   const fetchSuggestions = useCallback(async () => {
     setLoadingSuggestions(true);
+    setErrorSuggestions('');
+    setSuggestions([]);
     try {
       const previousAnswers = answers.map((a) => ({
         question: a.questionTitle,
@@ -45,10 +61,22 @@ export default function QuestionBlock({
         previousAnswers,
       });
 
-      setSuggestions(suggestionsData);
-      console.log('AI Suggestions fetched:', suggestionsData.length, 'suggestions');
-    } catch (error) {
+      if (suggestionsData && suggestionsData.length > 0) {
+        setSuggestions(suggestionsData);
+        setErrorSuggestions(''); // Clear any previous errors
+        console.log('AI Suggestions fetched:', suggestionsData.length, 'suggestions');
+      } else {
+        setErrorSuggestions('No suggestions available. The AI service may be unavailable or returned empty results.');
+        console.warn('AI Suggestions returned empty array');
+      }
+    } catch (error: any) {
       console.error('Error fetching suggestions:', error);
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to load suggestions.';
+      setErrorSuggestions(
+        errorMessage.includes('connect') || errorMessage.includes('Network') 
+          ? 'Cannot connect to backend. Please ensure the backend server is running on port 3001.'
+          : errorMessage
+      );
     } finally {
       setLoadingSuggestions(false);
     }
@@ -58,6 +86,7 @@ export default function QuestionBlock({
     if (!isActive) return; // Only fetch for active questions
     
     setLoadingAnswerSuggestion(true);
+    setErrorAnswerSuggestion('');
     setAnswerSuggestion(''); // Clear previous suggestion
     try {
       const previousAnswers = answers.map((a) => ({
@@ -76,10 +105,19 @@ export default function QuestionBlock({
       console.log('Received suggestion:', suggestion);
       if (suggestion && suggestion.trim()) {
         setAnswerSuggestion(suggestion);
+        setErrorAnswerSuggestion(''); // Clear any previous errors
+      } else {
+        setErrorAnswerSuggestion('No recommendation available. The AI service may be unavailable or returned empty results.');
+        console.warn('AI Answer suggestion returned empty');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching answer suggestion:', error);
-      // Set a fallback message or empty string
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to load recommendation.';
+      setErrorAnswerSuggestion(
+        errorMessage.includes('connect') || errorMessage.includes('Network')
+          ? 'Cannot connect to backend. Please ensure the backend server is running on port 3001.'
+          : errorMessage
+      );
       setAnswerSuggestion('');
     } finally {
       setLoadingAnswerSuggestion(false);
@@ -332,7 +370,7 @@ export default function QuestionBlock({
 
         {/* AI Suggestions Section - Always show for questions that need AI suggestions */}
         {shouldShowAISuggestions && (
-          <div className="mb-4">
+          <div className="mb-4 border-t border-gray-200 pt-4">
             <div className="flex items-center gap-2 mb-3">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -352,6 +390,13 @@ export default function QuestionBlock({
                 ✨ AI Suggestions
               </p>
             </div>
+            
+            {/* Always show something - loading, content, or message */}
+            {(loadingSuggestions || loadingAnswerSuggestion) && suggestions.length === 0 && !answerSuggestion && !errorSuggestions && !errorAnswerSuggestion && (
+              <div className="text-sm text-gray-500 italic mb-3">
+                ⏳ Generating AI suggestions...
+              </div>
+            )}
 
             {/* AI Answer Suggestion - Single suggestion button (show for all questions) */}
             {loadingAnswerSuggestion ? (
@@ -361,7 +406,7 @@ export default function QuestionBlock({
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                 </div>
-                <span>Generating suggestion...</span>
+                <span>Generating recommendation...</span>
               </div>
             ) : answerSuggestion ? (
               <div className="mb-3">
@@ -372,6 +417,10 @@ export default function QuestionBlock({
                 >
                   {answerSuggestion}
                 </button>
+              </div>
+            ) : errorAnswerSuggestion ? (
+              <div className="mb-3">
+                <p className="text-xs text-amber-600 italic">{errorAnswerSuggestion}</p>
               </div>
             ) : null}
 
@@ -406,7 +455,7 @@ export default function QuestionBlock({
             )}
 
             {/* Loading Suggestions */}
-            {loadingSuggestions && suggestions.length === 0 && (
+            {loadingSuggestions && suggestions.length === 0 && !errorSuggestions && (
               <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
                 <div className="flex gap-1">
                   <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -417,9 +466,16 @@ export default function QuestionBlock({
               </div>
             )}
 
+            {/* Error Message for Suggestions */}
+            {errorSuggestions && !loadingSuggestions && (
+              <div className="mb-3">
+                <p className="text-xs text-amber-600 italic">{errorSuggestions}</p>
+              </div>
+            )}
+
             {/* No Suggestions Available - Show helpful message */}
             {!loadingSuggestions && !loadingAnswerSuggestion && 
-             suggestions.length === 0 && !answerSuggestion && isActive && (
+             suggestions.length === 0 && !answerSuggestion && !errorSuggestions && !errorAnswerSuggestion && isActive && (
               <div className="text-sm text-gray-500 italic mb-3">
                 💭 AI suggestions are being generated based on your previous answers...
               </div>

@@ -65,11 +65,29 @@ export const getSuggestions = async (
   data: SuggestionsRequest
 ): Promise<string[]> => {
   try {
+    console.log('Fetching suggestions from:', `${API_URL}/ai/suggestions`);
+    console.log('Request data:', data);
     const response = await api.post<SuggestionsResponse>('/ai/suggestions', data);
-    return response.data.suggestions;
-  } catch (error) {
+    console.log('Suggestions response:', response.data);
+    if (!response.data || !response.data.suggestions) {
+      console.error('Invalid response format:', response.data);
+      throw new Error('Invalid response from server');
+    }
+    return response.data.suggestions || [];
+  } catch (error: any) {
     console.error('Error fetching suggestions:', error);
-    return [];
+    console.error('Error details:', {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+      config: error?.config?.url
+    });
+    // Re-throw with more context so the component can show a helpful error
+    throw new Error(
+      error?.response?.data?.message || 
+      error?.message || 
+      'Failed to connect to the AI service. Please ensure the backend is running.'
+    );
   }
 };
 
@@ -104,14 +122,32 @@ export const getAnswerSuggestion = async (
   data: AnswerSuggestionRequest
 ): Promise<string> => {
   try {
+    console.log('Fetching answer suggestion from:', `${API_URL}/ai/answer-suggestion`);
+    console.log('Request data:', data);
     const response = await api.post<AnswerSuggestionResponse>(
       '/ai/answer-suggestion',
       data
     );
-    return response.data.suggestion;
-  } catch (error) {
+    console.log('Answer suggestion response:', response.data);
+    if (!response.data || response.data.suggestion === undefined) {
+      console.error('Invalid response format:', response.data);
+      throw new Error('Invalid response from server');
+    }
+    return response.data.suggestion || '';
+  } catch (error: any) {
     console.error('Error fetching answer suggestion:', error);
-    throw error;
+    console.error('Error details:', {
+      message: error?.message,
+      response: error?.response?.data,
+      status: error?.response?.status,
+      config: error?.config?.url
+    });
+    // Re-throw with more context
+    throw new Error(
+      error?.response?.data?.message || 
+      error?.message || 
+      'Failed to connect to the AI service. Please ensure the backend is running.'
+    );
   }
 };
 
