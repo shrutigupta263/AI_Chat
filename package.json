@@ -1,0 +1,25 @@
+{
+  "name": "nugverse-chatai",
+  "version": "1.0.0",
+  "description": "AI-Powered UGC Brief Generation Platform",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run start:dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "start:backend": "cd backend && npm run start:prod",
+    "start:frontend": "cd frontend && npm start"
+  },
+  "keywords": [
+    "ugc",
+    "ai",
+    "openai",
+    "nestjs",
+    "nextjs",
+    "campaign-brief"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+
