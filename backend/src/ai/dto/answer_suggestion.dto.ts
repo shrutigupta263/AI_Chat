@@ -5,7 +5,7 @@ export class QuestionAnswer {
 
 export class AnswerSuggestionRequestDto {
   currentQuestion: string;
-  questionType: 'text' | 'textarea' | 'dropdown' | 'scene';
+  questionType: "text" | "textarea" | "dropdown" | "scene";
   options?: string[];
   previousAnswers: QuestionAnswer[];
   userProfile?: Record<string, any>;
@@ -15,4 +15,3 @@ export class AnswerSuggestionRequestDto {
 export class AnswerSuggestionResponseDto {
   suggestion: string;
 }
-

@@ -1,12 +1,12 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app_module';
+import { NestFactory } from "@nestjs/core";
+import { AppModule } from "./app_module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Enable CORS for frontend
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     credentials: true,
   });
 
@@ -15,4 +15,3 @@ async function bootstrap() {
   console.log(`🚀 Backend running on http://localhost:${port}`);
 }
 bootstrap();
-

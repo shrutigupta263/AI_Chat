@@ -1,20 +1,29 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import OpenAI from 'openai';
-import { SuggestionsRequestDto, SuggestionsResponseDto } from './dto/suggestions.dto';
-import { SummaryRequestDto, SummaryResponseDto } from './dto/summary.dto';
-import { PostAnswerSuggestionRequestDto, PostAnswerSuggestionResponseDto } from './dto/post_answer_suggestion.dto';
-import { AnswerSuggestionRequestDto, AnswerSuggestionResponseDto } from './dto/answer_suggestion.dto';
+import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import OpenAI from "openai";
+import {
+  SuggestionsRequestDto,
+  SuggestionsResponseDto,
+} from "./dto/suggestions.dto";
+import { SummaryRequestDto, SummaryResponseDto } from "./dto/summary.dto";
+import {
+  PostAnswerSuggestionRequestDto,
+  PostAnswerSuggestionResponseDto,
+} from "./dto/post_answer_suggestion.dto";
+import {
+  AnswerSuggestionRequestDto,
+  AnswerSuggestionResponseDto,
+} from "./dto/answer_suggestion.dto";
 
 @Injectable()
 export class AiService {
   private openai: OpenAI;
 
   constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    
+    const apiKey = this.configService.get<string>("OPENAI_API_KEY");
+
     if (!apiKey) {
-      throw new Error('OPENAI_API_KEY is not defined in environment variables');
+      throw new Error("OPENAI_API_KEY is not defined in environment variables");
     }
 
     this.openai = new OpenAI({
@@ -22,21 +31,23 @@ export class AiService {
     });
   }
 
-  async getSuggestions(dto: SuggestionsRequestDto): Promise<SuggestionsResponseDto> {
+  async getSuggestions(
+    dto: SuggestionsRequestDto,
+  ): Promise<SuggestionsResponseDto> {
     try {
       const { currentQuestion, questionType, options, previousAnswers } = dto;
 
       // Build context from previous answers
       const context = previousAnswers
         .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
-        .join('\n\n');
+        .join("\n\n");
 
       // Generate different prompts based on question type
-      let typeSpecificInstructions = '';
-      let suggestionFormat = '';
+      let typeSpecificInstructions = "";
+      let suggestionFormat = "";
 
-      if (questionType === 'dropdown' && options && options.length > 0) {
-        typeSpecificInstructions = `This is a DROPDOWN question with the following options: ${options.join(', ')}.
+      if (questionType === "dropdown" && options && options.length > 0) {
+        typeSpecificInstructions = `This is a DROPDOWN question with the following options: ${options.join(", ")}.
 
 For dropdown questions, provide suggestions that:
 - Recommend which option(s) to select based on context
@@ -44,7 +55,7 @@ For dropdown questions, provide suggestions that:
 - Consider their previous answers to make the recommendation
 - Format: "Select [Option Name] - [Brief reason why]" or "Choose [Option] because [reason]"
 - Provide 3-5 different option recommendations with reasoning`;
-      } else if (questionType === 'textarea') {
+      } else if (questionType === "textarea") {
         typeSpecificInstructions = `This is a TEXTAREA question (multi-line text input).
 
 For textarea questions, provide:
@@ -53,7 +64,7 @@ For textarea questions, provide:
 - Complete thoughts that can be used directly or adapted
 - Varied perspectives on the same topic
 - Each suggestion should be substantial and well-developed`;
-      } else if (questionType === 'text') {
+      } else if (questionType === "text") {
         typeSpecificInstructions = `This is a TEXT question (single-line input).
 
 For text questions, provide:
@@ -61,7 +72,7 @@ For text questions, provide:
 - Different variations or approaches
 - Practical, ready-to-use answers
 - Varied options that cover different aspects`;
-      } else if (questionType === 'scene') {
+      } else if (questionType === "scene") {
         typeSpecificInstructions = `This is a SCENE question for video script.
 
 For scene questions, provide:
@@ -78,12 +89,16 @@ Question Type: ${questionType}
 
 ${typeSpecificInstructions}
 
-${context ? `IMPORTANT - Previous answers from the user (use these to make personalized suggestions):\n${context}\n\nYou MUST use the information from previous answers to generate relevant, personalized suggestions. For example:
+${
+  context
+    ? `IMPORTANT - Previous answers from the user (use these to make personalized suggestions):\n${context}\n\nYou MUST use the information from previous answers to generate relevant, personalized suggestions. For example:
 - If they mentioned a specific product, reference it directly
 - If they chose a platform, tailor suggestions specifically for that platform
 - If they specified demographics, incorporate those details
 - Build on their previous answers to create coherent, context-aware suggestions
-- Make each suggestion feel personalized and relevant to their specific situation\n` : 'This is the first question, so provide general but helpful suggestions that are still valuable.\n'}
+- Make each suggestion feel personalized and relevant to their specific situation\n`
+    : "This is the first question, so provide general but helpful suggestions that are still valuable.\n"
+}
 
 Requirements:
 - Generate 5-7 DIFFERENT suggestions (not variations of the same idea)
@@ -98,41 +113,44 @@ Requirements:
 Generate diverse, varied suggestions now:`;
 
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: "gpt-4o-mini",
         messages: [
           {
-            role: 'system',
-            content: 'You are a helpful assistant that generates concise, relevant suggestions for UGC campaign briefs.',
+            role: "system",
+            content:
+              "You are a helpful assistant that generates concise, relevant suggestions for UGC campaign briefs.",
           },
           {
-            role: 'user',
+            role: "user",
             content: prompt,
           },
         ],
         temperature: 0.8,
-        max_tokens: questionType === 'textarea' || questionType === 'scene' ? 500 : 400,
+        max_tokens:
+          questionType === "textarea" || questionType === "scene" ? 500 : 400,
       });
 
-      const responseText = completion.choices[0]?.message?.content?.trim() || '';
-      
+      const responseText =
+        completion.choices[0]?.message?.content?.trim() || "";
+
       // Split by newlines and filter empty lines
       let suggestions = responseText
-        .split('\n')
+        .split("\n")
         .map((s) => s.trim())
         .filter((s) => s.length > 0)
         .slice(0, 7); // Max 7 suggestions for variety
 
       // For dropdown questions, try to extract option names from suggestions
-      if (questionType === 'dropdown' && options && options.length > 0) {
+      if (questionType === "dropdown" && options && options.length > 0) {
         // Keep suggestions as-is but they should contain option recommendations
         // The frontend will handle extracting option names
       }
 
       return { suggestions };
     } catch (error) {
-      console.error('Error generating suggestions:', error);
+      console.error("Error generating suggestions:", error);
       throw new HttpException(
-        'Failed to generate suggestions',
+        "Failed to generate suggestions",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -145,7 +163,7 @@ Generate diverse, varied suggestions now:`;
       // Build the answers list
       const answersText = allAnswers
         .map((item) => `**${item.question}**\n${item.answer}`)
-        .join('\n\n');
+        .join("\n\n");
 
       const prompt = `You are creating a professional UGC (User Generated Content) creative brief based on the following form responses.
 
@@ -171,14 +189,15 @@ ${answersText}
 Generate the creative brief now:`;
 
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o',
+        model: "gpt-4o",
         messages: [
           {
-            role: 'system',
-            content: 'You are a professional creative brief writer. Generate clear, well-structured UGC campaign briefs.',
+            role: "system",
+            content:
+              "You are a professional creative brief writer. Generate clear, well-structured UGC campaign briefs.",
           },
           {
-            role: 'user',
+            role: "user",
             content: prompt,
           },
         ],
@@ -186,13 +205,13 @@ Generate the creative brief now:`;
         max_tokens: 2000,
       });
 
-      const summary = completion.choices[0]?.message?.content?.trim() || '';
+      const summary = completion.choices[0]?.message?.content?.trim() || "";
 
       return { summary };
     } catch (error) {
-      console.error('Error generating summary:', error);
+      console.error("Error generating summary:", error);
       throw new HttpException(
-        'Failed to generate summary',
+        "Failed to generate summary",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -207,14 +226,14 @@ Generate the creative brief now:`;
       // Build conversation history for context
       const conversationHistory = history
         .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
-        .join('\n\n');
+        .join("\n\n");
 
       const prompt = `You are an AI assistant helping users fill out a UGC (User Generated Content) campaign brief form. 
 
 The user has just answered a question. Based on their answer and the entire conversation history, provide a helpful, personalized suggestion or insight.
 
 Conversation History:
-${conversationHistory || 'No previous answers yet.'}
+${conversationHistory || "No previous answers yet."}
 
 Current Question: ${currentQuestion}
 User's Answer: ${currentAnswer}
@@ -229,14 +248,15 @@ Provide a brief, helpful suggestion (2-3 sentences max) that:
 Generate your suggestion now:`;
 
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: "gpt-4o-mini",
         messages: [
           {
-            role: 'system',
-            content: 'You are a helpful, friendly AI assistant that provides personalized feedback and suggestions for UGC campaign briefs. Keep responses concise, relevant, and encouraging.',
+            role: "system",
+            content:
+              "You are a helpful, friendly AI assistant that provides personalized feedback and suggestions for UGC campaign briefs. Keep responses concise, relevant, and encouraging.",
           },
           {
-            role: 'user',
+            role: "user",
             content: prompt,
           },
         ],
@@ -244,13 +264,13 @@ Generate your suggestion now:`;
         max_tokens: 200,
       });
 
-      const suggestion = completion.choices[0]?.message?.content?.trim() || '';
+      const suggestion = completion.choices[0]?.message?.content?.trim() || "";
 
       return { suggestion };
     } catch (error) {
-      console.error('Error generating post-answer suggestion:', error);
+      console.error("Error generating post-answer suggestion:", error);
       throw new HttpException(
-        'Failed to generate post-answer suggestion',
+        "Failed to generate post-answer suggestion",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
@@ -260,33 +280,40 @@ Generate your suggestion now:`;
     dto: AnswerSuggestionRequestDto,
   ): Promise<AnswerSuggestionResponseDto> {
     try {
-      const { currentQuestion, questionType, options, previousAnswers, userProfile, metadata } = dto;
+      const {
+        currentQuestion,
+        questionType,
+        options,
+        previousAnswers,
+        userProfile,
+        metadata,
+      } = dto;
 
       // Build context from previous answers
       const context = previousAnswers
         .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
-        .join('\n\n');
+        .join("\n\n");
 
       // Generate type-specific instructions
-      let typeSpecificInstructions = '';
+      let typeSpecificInstructions = "";
 
-      if (questionType === 'dropdown' && options && options.length > 0) {
-        typeSpecificInstructions = `This is a DROPDOWN question with the following options: ${options.join(', ')}.
+      if (questionType === "dropdown" && options && options.length > 0) {
+        typeSpecificInstructions = `This is a DROPDOWN question with the following options: ${options.join(", ")}.
 You MUST return ONLY the exact option name from the list above.
 Do NOT add any explanation, prefix, or suffix.
 Just return the single best option name.`;
-      } else if (questionType === 'textarea') {
+      } else if (questionType === "textarea") {
         typeSpecificInstructions = `This is a TEXTAREA question (multi-line text input).
 Provide a complete, well-structured answer (2-4 sentences).
 Make it detailed and professional.
 Do NOT add any explanation or meta-commentary.
 Just return the direct answer.`;
-      } else if (questionType === 'text') {
+      } else if (questionType === "text") {
         typeSpecificInstructions = `This is a TEXT question (single-line input).
 Provide a concise, specific answer.
 Do NOT add any explanation or meta-commentary.
 Just return the direct answer.`;
-      } else if (questionType === 'scene') {
+      } else if (questionType === "scene") {
         typeSpecificInstructions = `This is a SCENE question for video script.
 Provide a detailed scene description (2-3 sentences).
 Make it visual and action-oriented.
@@ -301,15 +328,19 @@ Question Type: ${questionType}
 
 ${typeSpecificInstructions}
 
-${context ? `IMPORTANT - Previous answers from the user (use these to make a personalized suggestion):\n${context}\n\nYou MUST use the information from previous answers to generate a relevant, personalized suggestion. For example:
+${
+  context
+    ? `IMPORTANT - Previous answers from the user (use these to make a personalized suggestion):\n${context}\n\nYou MUST use the information from previous answers to generate a relevant, personalized suggestion. For example:
 - If they mentioned a specific product, reference it directly
 - If they chose a platform, tailor the suggestion specifically for that platform
 - If they specified demographics, incorporate those details
 - Build on their previous answers to create a coherent, context-aware suggestion
-- Make the suggestion feel personalized and relevant to their specific situation\n` : 'This is the first question, so provide a general but helpful suggestion.\n'}
+- Make the suggestion feel personalized and relevant to their specific situation\n`
+    : "This is the first question, so provide a general but helpful suggestion.\n"
+}
 
-${userProfile ? `User Profile Data:\n${JSON.stringify(userProfile, null, 2)}\n` : ''}
-${metadata ? `Additional Metadata:\n${JSON.stringify(metadata, null, 2)}\n` : ''}
+${userProfile ? `User Profile Data:\n${JSON.stringify(userProfile, null, 2)}\n` : ""}
+${metadata ? `Additional Metadata:\n${JSON.stringify(metadata, null, 2)}\n` : ""}
 
 CRITICAL REQUIREMENTS:
 - Return ONLY ONE direct answer
@@ -327,32 +358,34 @@ Example of what to return:
 Generate the direct answer now (ONLY the answer, nothing else):`;
 
       const completion = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: "gpt-4o-mini",
         messages: [
           {
-            role: 'system',
-            content: 'You are a helpful assistant that generates direct, concise answers for form questions. Return ONLY the answer itself, with no explanations or meta-commentary.',
+            role: "system",
+            content:
+              "You are a helpful assistant that generates direct, concise answers for form questions. Return ONLY the answer itself, with no explanations or meta-commentary.",
           },
           {
-            role: 'user',
+            role: "user",
             content: prompt,
           },
         ],
         temperature: 0.7,
-        max_tokens: questionType === 'textarea' || questionType === 'scene' ? 300 : 150,
+        max_tokens:
+          questionType === "textarea" || questionType === "scene" ? 300 : 150,
       });
 
-      const suggestion = completion.choices[0]?.message?.content?.trim() || '';
+      const suggestion = completion.choices[0]?.message?.content?.trim() || "";
 
       // For dropdown questions, validate that the suggestion matches one of the options
-      if (questionType === 'dropdown' && options && options.length > 0) {
+      if (questionType === "dropdown" && options && options.length > 0) {
         const matchedOption = options.find(
-          (option) => 
+          (option) =>
             suggestion.toLowerCase() === option.toLowerCase() ||
             suggestion.toLowerCase().includes(option.toLowerCase()) ||
-            option.toLowerCase().includes(suggestion.toLowerCase())
+            option.toLowerCase().includes(suggestion.toLowerCase()),
         );
-        
+
         if (matchedOption) {
           return { suggestion: matchedOption };
         }
@@ -360,12 +393,11 @@ Generate the direct answer now (ONLY the answer, nothing else):`;
 
       return { suggestion };
     } catch (error) {
-      console.error('Error generating answer suggestion:', error);
+      console.error("Error generating answer suggestion:", error);
       throw new HttpException(
-        'Failed to generate answer suggestion',
+        "Failed to generate answer suggestion",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
 }
-

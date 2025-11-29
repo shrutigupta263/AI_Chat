@@ -12,4 +12,3 @@ export class PostAnswerSuggestionRequestDto {
 export class PostAnswerSuggestionResponseDto {
   suggestion: string;
 }
-

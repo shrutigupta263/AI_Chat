@@ -10,4 +10,3 @@ export class SummaryRequestDto {
 export class SummaryResponseDto {
   summary: string;
 }
-

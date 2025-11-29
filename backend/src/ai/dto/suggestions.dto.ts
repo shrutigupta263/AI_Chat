@@ -5,7 +5,7 @@ export class PreviousAnswer {
 
 export class SuggestionsRequestDto {
   currentQuestion: string;
-  questionType: 'text' | 'textarea' | 'dropdown' | 'scene';
+  questionType: "text" | "textarea" | "dropdown" | "scene";
   options?: string[];
   previousAnswers: PreviousAnswer[];
 }
@@ -13,4 +13,3 @@ export class SuggestionsRequestDto {
 export class SuggestionsResponseDto {
   suggestions: string[];
 }
-
