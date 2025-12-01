@@ -7,6 +7,7 @@ import UiCard from '@/components/ui/ui_card';
 import PrimaryButton from '@/components/ui/primary_button';
 import SecondaryButton from '@/components/ui/secondary_button';
 import FormField from './form_field';
+import ContentFieldWithAi from './content_field_with_ai';
 
 interface DeliveryTimelineStepProps {
   questionIds: string[];
@@ -37,6 +38,9 @@ export default function DeliveryTimelineStep({
     .map((id) => questionMap[id])
     .filter((question): question is Question => Boolean(question));
 
+  // Questions that need AI suggestions (textarea fields)
+  const questionsWithAi = ['wardrobe', 'creative_direction', 'legal_disclaimers'];
+
   const isStepComplete =
     orderedQuestions.length > 0 &&
     orderedQuestions.every((question) => (answerMap[question.id]?.trim() || '').length > 0);
@@ -52,14 +56,27 @@ export default function DeliveryTimelineStep({
       </div>
 
       <div className="space-y-6">
-        {orderedQuestions.map((question) => (
-          <FormField
-            key={question.id}
-            question={question}
-            value={answerMap[question.id] || ''}
-            onChange={(value) => setAnswer(question.id, question.title, value)}
-          />
-        ))}
+        {orderedQuestions.map((question) => {
+          if (questionsWithAi.includes(question.id)) {
+            return (
+              <ContentFieldWithAi
+                key={question.id}
+                question={question}
+                value={answerMap[question.id] || ''}
+                onChange={(value) => setAnswer(question.id, question.title, value)}
+                isActive={isActive}
+              />
+            );
+          }
+          return (
+            <FormField
+              key={question.id}
+              question={question}
+              value={answerMap[question.id] || ''}
+              onChange={(value) => setAnswer(question.id, question.title, value)}
+            />
+          );
+        })}
       </div>
 
       {isActive && (

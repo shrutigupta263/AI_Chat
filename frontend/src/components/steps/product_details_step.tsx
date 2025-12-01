@@ -61,7 +61,7 @@ export default function ProductDetailsStep({
   const [suggestionSelected, setSuggestionSelected] = useState(false);
   const { suggestions, answerSuggestion, loading, error, canShowSuggestions } = useAiSuggestions(
     sellingPointsQuestion,
-    isActive && shouldFetchSuggestions && !suggestionSelected,
+    isActive && shouldFetchSuggestions && !suggestionSelected && !description.trim(),
   );
 
   useEffect(() => {
@@ -90,6 +90,14 @@ export default function ProductDetailsStep({
       setProductLink(productLinkAnswer.answerValue);
     }
   }, [getAnswerById, sellingPointsQuestion.id, linkQuestion.id]);
+
+  // Reset suggestionSelected when field becomes empty
+  useEffect(() => {
+    if (!description.trim() && suggestionSelected) {
+      setSuggestionSelected(false);
+      setShouldFetchSuggestions(false);
+    }
+  }, [description, suggestionSelected]);
 
   const handleCategoryChange = (value: string) => {
     setCategory(value);
@@ -168,7 +176,7 @@ export default function ProductDetailsStep({
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               onFocus={() => {
-                if (!suggestionSelected) {
+                if (!description.trim()) {
                   setShouldFetchSuggestions(true);
                 }
               }}
@@ -194,7 +202,7 @@ export default function ProductDetailsStep({
           </div>
         </div>
 
-        {shouldFetchSuggestions && !suggestionSelected && (
+        {shouldFetchSuggestions && !suggestionSelected && !description.trim() && (
           <div className="lg:w-[320px]">
             <AiSuggestionCard
               title="AI suggestions for key messages"

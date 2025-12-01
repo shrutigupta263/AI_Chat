@@ -7,7 +7,46 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 seconds timeout
 });
+
+// Add request interceptor for debugging
+api.interceptors.request.use(
+  (config) => {
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('[API] Request error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (error.code === 'ECONNABORTED') {
+      console.error('[API] Request timeout');
+      return Promise.reject(new Error('Request timeout. The server is taking too long to respond.'));
+    }
+    if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+      console.error('[API] Network error - Backend may not be running');
+      return Promise.reject(new Error('Cannot connect to backend server. Please ensure the backend is running on http://localhost:3001'));
+    }
+    if (error.response) {
+      // Server responded with error status
+      console.error('[API] Server error:', error.response.status, error.response.data);
+    } else if (error.request) {
+      // Request made but no response
+      console.error('[API] No response received:', error.request);
+      return Promise.reject(new Error('No response from server. Please check if the backend is running.'));
+    }
+    return Promise.reject(error);
+  }
+);
 
 export interface PreviousAnswer {
   question: string;
@@ -75,19 +114,8 @@ export const getSuggestions = async (
     }
     return response.data.suggestions || [];
   } catch (error: any) {
-    console.error('Error fetching suggestions:', error);
-    console.error('Error details:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-      config: error?.config?.url
-    });
-    // Re-throw with more context so the component can show a helpful error
-    throw new Error(
-      error?.response?.data?.message || 
-      error?.message || 
-      'Failed to connect to the AI service. Please ensure the backend is running.'
-    );
+    // Error is already handled by interceptor, just re-throw
+    throw error;
   }
 };
 
@@ -96,9 +124,12 @@ export const generateSummary = async (
 ): Promise<string> => {
   try {
     const response = await api.post<SummaryResponse>('/ai/generate-summary', data);
+    if (!response.data || !response.data.summary) {
+      throw new Error('Invalid response from server');
+    }
     return response.data.summary;
-  } catch (error) {
-    console.error('Error generating summary:', error);
+  } catch (error: any) {
+    // Error is already handled by interceptor, just re-throw
     throw error;
   }
 };
@@ -111,9 +142,12 @@ export const getPostAnswerSuggestion = async (
       '/ai/post-answer-suggestion',
       data
     );
+    if (!response.data || response.data.suggestion === undefined) {
+      throw new Error('Invalid response from server');
+    }
     return response.data.suggestion;
-  } catch (error) {
-    console.error('Error fetching post-answer suggestion:', error);
+  } catch (error: any) {
+    // Error is already handled by interceptor, just re-throw
     throw error;
   }
 };
@@ -135,19 +169,8 @@ export const getAnswerSuggestion = async (
     }
     return response.data.suggestion || '';
   } catch (error: any) {
-    console.error('Error fetching answer suggestion:', error);
-    console.error('Error details:', {
-      message: error?.message,
-      response: error?.response?.data,
-      status: error?.response?.status,
-      config: error?.config?.url
-    });
-    // Re-throw with more context
-    throw new Error(
-      error?.response?.data?.message || 
-      error?.message || 
-      'Failed to connect to the AI service. Please ensure the backend is running.'
-    );
+    // Error is already handled by interceptor, just re-throw
+    throw error;
   }
 };
 
