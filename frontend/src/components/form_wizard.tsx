@@ -1,342 +1,235 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
+import '@/styles/ugc_form.css';
 import { useFormStore } from '@/store/form_store';
 import { FORM_QUESTIONS, Question } from '@/config/questions';
-import { getSuggestions, getAnswerSuggestion } from '@/services/api';
-import QuestionBlock from './question_block';
-import SceneBlock from './scene_block';
+import StepChip from './ui/step_chip';
+import BasicInfoStep from './steps/basic_info_step';
+import ProductDetailsStep from './steps/product_details_step';
+import VideoInformationStep from './steps/video_information_step';
+import ContentRequirementsStep from './steps/content_requirements_step';
+import DeliveryTimelineStep from './steps/delivery_timeline_step';
+import FinalPreviewStep from './steps/final_preview_step';
+
+interface StepDefinition {
+  id: string;
+  label: string;
+  questionIds: string[];
+}
+
+const STEP_FLOW: StepDefinition[] = [
+  {
+    id: 'basics',
+    label: 'Basics',
+    questionIds: [
+      'product_description',
+      'product_name',
+      'target_audience',
+      'main_problem',
+      'user_access',
+      'differentiator',
+      'current_stage',
+      'product_vibe',
+      'primary_goal',
+    ],
+  },
+  {
+    id: 'product_details',
+    label: 'Product Details',
+    questionIds: ['product_link', 'product_selling_points'],
+  },
+  {
+    id: 'video_information',
+    label: 'Video Information',
+    questionIds: ['platform', 'aspect_ratio', 'shipping_product', 'creator_stipend'],
+  },
+  {
+    id: 'content_requirements',
+    label: 'Content Requirements',
+    questionIds: ['video_overview', 'video_opener', 'scene_1', 'scene_2', 'video_ending', 'references'],
+  },
+  {
+    id: 'delivery_timeline',
+    label: 'Delivery & Timeline',
+    questionIds: ['adlib_rules', 'wardrobe', 'creative_direction', 'legal_disclaimers'],
+  },
+  {
+    id: 'final_preview',
+    label: 'Final Preview',
+    questionIds: [],
+  },
+];
+
+const QUESTION_MAP: Record<string, Question> = FORM_QUESTIONS.reduce((acc, question) => {
+  acc[question.id] = question;
+  return acc;
+}, {} as Record<string, Question>);
+
+const QUESTION_INDEX_MAP = FORM_QUESTIONS.reduce((acc, question, index) => {
+  acc[question.id] = index;
+  return acc;
+}, {} as Record<string, number>);
 
 export default function FormWizard() {
-  const {
-    currentQuestionIndex,
-    nextQuestion,
-    goToQuestion,
-    scenes,
-    addScene,
-    setAnswer,
-    updateScene,
-    answers,
-  } = useFormStore();
+  const { goToQuestion, completeForm } = useFormStore();
+  const [activeStep, setActiveStep] = useState(0);
 
-  const [visibleQuestions, setVisibleQuestions] = useState<Question[]>([]);
-  const [showScenes, setShowScenes] = useState(false);
-  const [showAddSceneButton, setShowAddSceneButton] = useState(false);
-  const [combinedSceneSuggestions, setCombinedSceneSuggestions] = useState<string[]>([]);
-  const [loadingSceneSuggestions, setLoadingSceneSuggestions] = useState(false);
+  const questionCount = FORM_QUESTIONS.length;
+  const totalSteps = STEP_FLOW.length;
+  const progressPercent = Math.min(((activeStep + 1) / totalSteps) * 100, 100);
 
-  // Fetch combined AI suggestions for scenes
-  const fetchCombinedSceneSuggestions = useCallback(async () => {
-    if (currentQuestionIndex !== 17 && currentQuestionIndex !== 18) return;
-    
-    setLoadingSceneSuggestions(true);
-    try {
-      const previousAnswers = answers.map((a) => ({
-        question: a.questionTitle,
-        answer: a.answerValue,
-      }));
+  const updateStep = (stepIndex: number) => {
+    const safeIndex = Math.max(0, Math.min(stepIndex, STEP_FLOW.length - 1));
+    setActiveStep(safeIndex);
 
-      // Fetch suggestions for both scenes and combine them
-      const [scene1Suggestions, scene2Suggestions, scene1Answer, scene2Answer] = await Promise.all([
-        getSuggestions({
-          currentQuestion: 'Scene 1',
-          questionType: 'scene',
-          previousAnswers,
-        }),
-        getSuggestions({
-          currentQuestion: 'Scene 2',
-          questionType: 'scene',
-          previousAnswers,
-        }),
-        getAnswerSuggestion({
-          currentQuestion: 'Scene 1',
-          questionType: 'scene',
-          previousAnswers,
-        }),
-        getAnswerSuggestion({
-          currentQuestion: 'Scene 2',
-          questionType: 'scene',
-          previousAnswers,
-        }),
-      ]);
-
-      // Combine all suggestions into one array
-      const allSuggestions: string[] = [];
-      if (scene1Answer) allSuggestions.push(scene1Answer);
-      if (scene2Answer) allSuggestions.push(scene2Answer);
-      allSuggestions.push(...scene1Suggestions);
-      allSuggestions.push(...scene2Suggestions);
-
-      // Remove duplicates and limit to 5
-      const uniqueSuggestions = Array.from(new Set(allSuggestions)).slice(0, 5);
-      setCombinedSceneSuggestions(uniqueSuggestions);
-    } catch (error) {
-      console.error('Error fetching scene suggestions:', error);
-      setCombinedSceneSuggestions([]);
-    } finally {
-      setLoadingSceneSuggestions(false);
-    }
-  }, [currentQuestionIndex, answers]);
-
-  useEffect(() => {
-    // Determine which questions to show
-    const questionsToShow: Question[] = [];
-    
-    // Always show questions up to and including the current question index
-    for (let i = 0; i <= currentQuestionIndex && i < FORM_QUESTIONS.length; i++) {
-      const question = FORM_QUESTIONS[i];
-      
-      // Skip scene questions as they're handled separately
-      if (question.type !== 'scene') {
-        questionsToShow.push(question);
-      }
-    }
-    
-    // Ensure the current question is always visible (important for questions after scenes)
-    const currentQuestion = FORM_QUESTIONS[currentQuestionIndex];
-    if (currentQuestion && currentQuestion.type !== 'scene') {
-      // If current question is not a scene and not already in the list, add it
-      // This ensures questions after scenes are always visible
-      if (!questionsToShow.find(q => q.id === currentQuestion.id)) {
-        questionsToShow.push(currentQuestion);
-        // Sort to maintain proper order
-        questionsToShow.sort((a, b) => {
-          const indexA = FORM_QUESTIONS.findIndex(q => q.id === a.id);
-          const indexB = FORM_QUESTIONS.findIndex(q => q.id === b.id);
-          return indexA - indexB;
-        });
-      }
-    }
-    
-    setVisibleQuestions(questionsToShow);
-
-    // Show scenes section when we reach scene questions (indices 17 or 18)
-    // Keep them visible even after moving past (index 19+) so users can see their answers
-    if (currentQuestionIndex >= 17) {
-      setShowScenes(true);
+    const step = STEP_FLOW[safeIndex];
+    const anchorQuestionId = step.questionIds[0];
+    if (anchorQuestionId && QUESTION_INDEX_MAP[anchorQuestionId] !== undefined) {
+      goToQuestion(QUESTION_INDEX_MAP[anchorQuestionId]);
+    } else if (step.id === 'final_preview') {
+      goToQuestion(questionCount - 1);
     }
 
-    // Check if we should show "Add Scene" button
-    // Show it only when actively on scene questions (indices 17 or 18)
-    if (currentQuestionIndex === 17 || currentQuestionIndex === 18) {
-      setShowAddSceneButton(true);
-    } else {
-      setShowAddSceneButton(false);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-
-    // Fetch combined suggestions when on scene questions
-    if (currentQuestionIndex === 17 || currentQuestionIndex === 18) {
-      fetchCombinedSceneSuggestions();
-    }
-  }, [currentQuestionIndex, fetchCombinedSceneSuggestions]);
-
-  // Scroll to active question when it changes
-  useEffect(() => {
-    // Small delay to ensure DOM is updated
-    const timer = setTimeout(() => {
-      const activeQuestion = document.querySelector('[data-question-active="true"]');
-      if (activeQuestion) {
-        // Only scroll if we're moving forward (not backward)
-        // This ensures downward flow
-        activeQuestion.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 150);
-    
-    return () => clearTimeout(timer);
-  }, [currentQuestionIndex, visibleQuestions]);
-
-  const handleNext = () => {
-    nextQuestion();
   };
 
-  const handleSceneSuggestionClick = (suggestion: string, sceneNumber: number) => {
-    const sceneId = `scene_${sceneNumber}`;
-    updateScene(sceneId, suggestion);
-    setAnswer(sceneId, `Scene ${sceneNumber}`, suggestion);
+  const handleBackToAdmin = () => {
+    if (typeof window !== 'undefined') {
+      window.history.back();
+    }
   };
 
-  const handleScenesNext = () => {
-    // Save all scenes to answers
-    scenes.forEach((scene, index) => {
-      if (scene.content) {
-        setAnswer(scene.id, `Scene ${index + 1}`, scene.content);
-      }
-    });
-    
-    // Advance to the next question
-    nextQuestion();
+  const handleFinish = () => {
+    completeForm();
   };
 
-  const isLastQuestion = currentQuestionIndex >= FORM_QUESTIONS.length - 1;
+  const renderActiveStep = () => {
+    const currentStep = STEP_FLOW[activeStep];
+
+    switch (currentStep.id) {
+      case 'basics':
+        return (
+          <BasicInfoStep
+            questionIds={currentStep.questionIds}
+            questionMap={QUESTION_MAP}
+            onNext={() => updateStep(activeStep + 1)}
+            isActive
+          />
+        );
+      case 'product_details':
+        return (
+          <ProductDetailsStep
+            sellingPointsQuestion={QUESTION_MAP['product_selling_points']}
+            linkQuestion={QUESTION_MAP['product_link']}
+            onPrevious={() => updateStep(activeStep - 1)}
+            onNext={() => updateStep(activeStep + 1)}
+            isActive
+          />
+        );
+      case 'video_information':
+        return (
+          <VideoInformationStep
+            questionIds={currentStep.questionIds}
+            questionMap={QUESTION_MAP}
+            onPrevious={() => updateStep(activeStep - 1)}
+            onNext={() => updateStep(activeStep + 1)}
+            isActive
+          />
+        );
+      case 'content_requirements':
+        return (
+          <ContentRequirementsStep
+            questionIds={currentStep.questionIds}
+            questionMap={QUESTION_MAP}
+            onPrevious={() => updateStep(activeStep - 1)}
+            onNext={() => updateStep(activeStep + 1)}
+            isActive
+          />
+        );
+      case 'delivery_timeline':
+        return (
+          <DeliveryTimelineStep
+            questionIds={currentStep.questionIds}
+            questionMap={QUESTION_MAP}
+            onPrevious={() => updateStep(activeStep - 1)}
+            onNext={() => updateStep(activeStep + 1)}
+            isActive
+          />
+        );
+      case 'final_preview':
+        return (
+          <FinalPreviewStep
+            questionMap={QUESTION_MAP}
+            onPrevious={() => updateStep(activeStep - 1)}
+            onFinish={handleFinish}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      {/* Header */}
-      <div className="mb-10 text-center">
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">
-          UGC Campaign Brief
-        </h1>
-        <p className="text-gray-600">
-          Answer each question with AI assistance to create your perfect brief
-        </p>
-        <div className="mt-4 text-sm text-gray-500">
-          Question {Math.min(currentQuestionIndex + 1, FORM_QUESTIONS.length)} of{' '}
-          {FORM_QUESTIONS.length}
+    <div className="ugc-form-page min-h-screen">
+      <div className="ugc-nav">
+        <div className="mx-auto flex h-[72px] max-w-[1100px] items-center justify-between px-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--color-primary)] text-lg font-semibold text-white">
+              N
+            </div>
+            <button
+              type="button"
+              onClick={handleBackToAdmin}
+              className="text-sm font-semibold text-[var(--color-primary)] hover:underline"
+            >
+              ← Back to Admin
+            </button>
+          </div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-full ugc-avatar text-sm font-semibold">
+            SG
+          </div>
         </div>
       </div>
 
-      {/* Questions List */}
-      <div className="space-y-6">
-        {visibleQuestions.map((question, index) => {
-          // Find the actual index of this question in the full list
-          const actualIndex = FORM_QUESTIONS.findIndex(q => q.id === question.id);
-          const isActive = actualIndex === currentQuestionIndex;
-          
-          return (
-            <div key={question.id}>
-              <div 
-                data-question-active={isActive}
-                data-question-id={question.id}
-              >
-                <QuestionBlock
-                  question={question}
-                  isActive={isActive}
-                  onNext={handleNext}
-                  isLastQuestion={isLastQuestion}
-                />
-              </div>
-              
-              {/* Insert Scenes Section after video_opener (index 16) when we reach scene questions */}
-              {actualIndex === 16 && showScenes && (
-                <div className="mb-8">
-                  {/* Scene Blocks - Same card UI as other questions */}
-                  {scenes.map((scene, index) => (
-                    <SceneBlock
-                      key={scene.id}
-                      sceneId={scene.id}
-                      sceneNumber={index + 1}
-                      isActive={currentQuestionIndex === 17 || currentQuestionIndex === 18}
-                      canDelete={scenes.length > 2}
-                      combinedSuggestions={combinedSceneSuggestions}
-                      onSuggestionClick={handleSceneSuggestionClick}
-                    />
-                  ))}
+      <section className="mx-auto max-w-[1100px] px-4 pt-10 pb-6">
+        <p className="text-sm uppercase tracking-wide text-[var(--text-muted)]">Campaign setup</p>
+        <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-[32px] font-semibold text-[var(--text-dark)]">Create UGC Brief</h1>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
+              Build a comprehensive brief to attract the perfect creators for your campaign.
+            </p>
+          </div>
+          <div className="text-sm text-[var(--text-muted)]">
+            Step {activeStep + 1} of {totalSteps}
+          </div>
+        </div>
+        <div className="mt-6 flex flex-wrap gap-3">
+          {STEP_FLOW.map((step, index) => (
+            <StepChip
+              key={step.id}
+              label={step.label}
+              stepNumber={index + 1}
+              isActive={index === activeStep}
+              isComplete={index < activeStep}
+              onClick={() => updateStep(index)}
+            />
+          ))}
+        </div>
+        <div className="mt-6 h-2 w-full rounded-full bg-[var(--border)]">
+          <div
+            className="h-2 rounded-full bg-[var(--color-primary)] transition-all duration-300"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </section>
 
-                  {/* Combined AI Suggestions for Both Scenes */}
-                  {(currentQuestionIndex === 17 || currentQuestionIndex === 18) && (
-                    <div className="mb-6 animate-slide-in">
-                      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <div className="mb-4 border-b border-gray-200 pb-3">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-gray-700">
-                              ✨ AI Suggestions for Scenes
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Loading state */}
-                        {loadingSceneSuggestions && (
-                          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-                            <div className="flex gap-1">
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                            </div>
-                            <span>Generating suggestions...</span>
-                          </div>
-                        )}
-
-                        {/* Combined suggestions list */}
-                        {!loadingSceneSuggestions && combinedSceneSuggestions.length > 0 && (
-                          <div className="space-y-2 mb-3">
-                            {combinedSceneSuggestions.map((suggestion, index) => (
-                              <div key={index} className="flex gap-2">
-                                <button
-                                  onClick={() => handleSceneSuggestionClick(suggestion, 1)}
-                                  className="flex-1 text-left px-4 py-2 bg-green-50 text-green-800 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm"
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <span className="text-xs font-bold opacity-60 mt-0.5">{index + 1}.</span>
-                                    <span className="flex-1">{suggestion}</span>
-                                    <span className="text-xs text-green-600">→ Scene 1</span>
-                                  </div>
-                                </button>
-                                <button
-                                  onClick={() => handleSceneSuggestionClick(suggestion, 2)}
-                                  className="flex-1 text-left px-4 py-2 bg-green-50 text-green-800 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm"
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <span className="text-xs font-bold opacity-60 mt-0.5">{index + 1}.</span>
-                                    <span className="flex-1">{suggestion}</span>
-                                    <span className="text-xs text-green-600">→ Scene 2</span>
-                                  </div>
-                                </button>
-                              </div>
-                            ))}
-                            <p className="text-xs text-gray-500 mt-2 italic">
-                              💡 Click any suggestion to use it for Scene 1 or Scene 2
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Add Scene Button */}
-                  {showAddSceneButton && (
-                    <div className="mb-6">
-                      <button
-                        onClick={addScene}
-                        className="w-full py-3 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
-                      >
-                        + Add Another Scene
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Next Question Button after Scenes */}
-                  {(currentQuestionIndex === 17 || currentQuestionIndex === 18) && (
-                    <div className="mb-6">
-                      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <button
-                          onClick={handleScenesNext}
-                          disabled={scenes.length < 2 || !scenes[0]?.content?.trim() || !scenes[1]?.content?.trim()}
-                          className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform ${
-                            scenes.length >= 2 && scenes[0]?.content?.trim() && scenes[1]?.content?.trim()
-                              ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] shadow-lg hover:shadow-xl'
-                              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          {scenes.length >= 2 && scenes[0]?.content?.trim() && scenes[1]?.content?.trim() ? (
-                            <>→ Next Question</>
-                          ) : (
-                            'Fill both scenes to continue'
-                          )}
-                        </button>
-                        {scenes.length >= 2 && scenes[0]?.content?.trim() && scenes[1]?.content?.trim() && (
-                          <p className="text-center text-sm text-green-600 mt-2 font-semibold animate-pulse">
-                            ✓ Ready to proceed!
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Progress Indicator */}
-      <div className="mt-8 bg-gray-200 rounded-full h-2">
-        <div
-          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-          style={{
-            width: `${((currentQuestionIndex + 1) / FORM_QUESTIONS.length) * 100}%`,
-          }}
-        />
-      </div>
+      <section className="mx-auto w-full max-w-[1100px] px-4 pb-16">
+        <div className="space-y-6">{renderActiveStep()}</div>
+      </section>
     </div>
   );
 }

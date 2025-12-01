@@ -5,6 +5,13 @@ import { Question, QUESTIONS_WITHOUT_AI_SUGGESTIONS } from '@/config/questions';
 import { getSuggestions, getAnswerSuggestion } from '@/services/api';
 import { useFormStore } from '@/store/form_store';
 import { getStatesForCountry, getCitiesForState } from '@/config/locations';
+import UiCard from './ui/ui_card';
+import TextInput from './ui/text_input';
+import MultilineTextarea from './ui/multiline_textarea';
+import DropdownSelect from './ui/dropdown_select';
+import PrimaryButton from './ui/primary_button';
+import AiSuggestionCard from './ui/ai_suggestion_card';
+import { classNames } from '@/utils/class_names';
 
 interface QuestionBlockProps {
   question: Question;
@@ -29,17 +36,15 @@ export default function QuestionBlock({
   const [errorSuggestions, setErrorSuggestions] = useState<string>('');
   const [errorAnswerSuggestion, setErrorAnswerSuggestion] = useState<string>('');
 
-  // Check if this question should show AI suggestions
   const shouldShowAISuggestions = !QUESTIONS_WITHOUT_AI_SUGGESTIONS.includes(question.id);
-  
-  // Debug logging
+
   useEffect(() => {
     if (isActive) {
       console.log('QuestionBlock Debug:', {
         questionId: question.id,
         questionTitle: question.title,
         shouldShowAISuggestions,
-        QUESTIONS_WITHOUT_AI_SUGGESTIONS
+        QUESTIONS_WITHOUT_AI_SUGGESTIONS,
       });
     }
   }, [isActive, question.id, question.title, shouldShowAISuggestions]);
@@ -63,7 +68,7 @@ export default function QuestionBlock({
 
       if (suggestionsData && suggestionsData.length > 0) {
         setSuggestions(suggestionsData);
-        setErrorSuggestions(''); // Clear any previous errors
+        setErrorSuggestions('');
         console.log('AI Suggestions fetched:', suggestionsData.length, 'suggestions');
       } else {
         setErrorSuggestions('No suggestions available. The AI service may be unavailable or returned empty results.');
@@ -73,9 +78,9 @@ export default function QuestionBlock({
       console.error('Error fetching suggestions:', error);
       const errorMessage = error?.message || error?.response?.data?.message || 'Failed to load suggestions.';
       setErrorSuggestions(
-        errorMessage.includes('connect') || errorMessage.includes('Network') 
+        errorMessage.includes('connect') || errorMessage.includes('Network')
           ? 'Cannot connect to backend. Please ensure the backend server is running on port 3001.'
-          : errorMessage
+          : errorMessage,
       );
     } finally {
       setLoadingSuggestions(false);
@@ -83,11 +88,11 @@ export default function QuestionBlock({
   }, [answers, question.title, question.type, question.options]);
 
   const fetchAnswerSuggestion = useCallback(async () => {
-    if (!isActive) return; // Only fetch for active questions
-    
+    if (!isActive) return;
+
     setLoadingAnswerSuggestion(true);
     setErrorAnswerSuggestion('');
-    setAnswerSuggestion(''); // Clear previous suggestion
+    setAnswerSuggestion('');
     try {
       const previousAnswers = answers.map((a) => ({
         question: a.questionTitle,
@@ -105,7 +110,7 @@ export default function QuestionBlock({
       console.log('Received suggestion:', suggestion);
       if (suggestion && suggestion.trim()) {
         setAnswerSuggestion(suggestion);
-        setErrorAnswerSuggestion(''); // Clear any previous errors
+        setErrorAnswerSuggestion('');
       } else {
         setErrorAnswerSuggestion('No recommendation available. The AI service may be unavailable or returned empty results.');
         console.warn('AI Answer suggestion returned empty');
@@ -116,7 +121,7 @@ export default function QuestionBlock({
       setErrorAnswerSuggestion(
         errorMessage.includes('connect') || errorMessage.includes('Network')
           ? 'Cannot connect to backend. Please ensure the backend server is running on port 3001.'
-          : errorMessage
+          : errorMessage,
       );
       setAnswerSuggestion('');
     } finally {
@@ -124,7 +129,6 @@ export default function QuestionBlock({
     }
   }, [isActive, answers, question.title, question.type, question.options]);
 
-  // Load existing answer if available
   useEffect(() => {
     const existingAnswer = getAnswerById(question.id);
     if (existingAnswer) {
@@ -132,7 +136,6 @@ export default function QuestionBlock({
     }
   }, [question.id, getAnswerById]);
 
-  // Clear state field when country changes
   useEffect(() => {
     if (question.id === 'state') {
       const countryAnswer = getAnswerById('country');
@@ -142,7 +145,6 @@ export default function QuestionBlock({
     }
   }, [question.id, answers, getAnswerById]);
 
-  // Clear city field when country or state changes
   useEffect(() => {
     if (question.id === 'city') {
       const countryAnswer = getAnswerById('country');
@@ -153,7 +155,6 @@ export default function QuestionBlock({
     }
   }, [question.id, answers, getAnswerById]);
 
-  // Fetch AI suggestions when question becomes active (only for questions that need them)
   useEffect(() => {
     if (isActive && shouldShowAISuggestions) {
       fetchSuggestions();
@@ -161,26 +162,21 @@ export default function QuestionBlock({
     }
   }, [isActive, question.id, shouldShowAISuggestions, fetchSuggestions, fetchAnswerSuggestion]);
 
-  // Re-fetch answer suggestion when previous answers change (for dynamic updates)
-  // Only for questions that should show AI suggestions
   useEffect(() => {
     if (isActive && shouldShowAISuggestions && !loadingAnswerSuggestion) {
       const timer = setTimeout(() => {
         fetchAnswerSuggestion();
-      }, 300); // Small delay to avoid too many calls
-      
+      }, 300);
+
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, shouldShowAISuggestions, answers.length]);
 
-
   const handleNext = async () => {
     if (value.trim()) {
-      // Save the answer when Next is clicked
       setAnswer(question.id, question.title, value);
-      
-      // Move to next question or complete form
+
       if (isLastQuestion) {
         completeForm();
       } else {
@@ -190,60 +186,50 @@ export default function QuestionBlock({
   };
 
   const handleSuggestionClick = (suggestion: string) => {
-    // For dropdown questions, try to extract the option name from suggestion
     if (question.type === 'dropdown' && question.options) {
-      // Look for option names in the suggestion
-      const matchedOption = question.options.find(option => 
-        suggestion.toLowerCase().includes(option.toLowerCase())
-      );
+      const matchedOption = question.options.find((option) => suggestion.toLowerCase().includes(option.toLowerCase()));
       if (matchedOption) {
         handleInputChange(matchedOption);
       } else {
-        // If no match found, try to extract first option mentioned
         const optionMatch = suggestion.match(/(?:select|choose|pick)\s+([^-\n]+)/i);
         if (optionMatch) {
           const extractedOption = optionMatch[1].trim();
-          const foundOption = question.options.find(opt => 
-            opt.toLowerCase().includes(extractedOption.toLowerCase()) ||
-            extractedOption.toLowerCase().includes(opt.toLowerCase())
+          const foundOption = question.options.find(
+            (opt) =>
+              opt.toLowerCase().includes(extractedOption.toLowerCase()) ||
+              extractedOption.toLowerCase().includes(opt.toLowerCase()),
           );
           if (foundOption) {
             handleInputChange(foundOption);
           } else {
-            handleInputChange(suggestion); // Fallback to full suggestion
+            handleInputChange(suggestion);
           }
         } else {
-          handleInputChange(suggestion); // Fallback to full suggestion
+          handleInputChange(suggestion);
         }
       }
     } else {
-      // For text/textarea, use suggestion directly
       handleInputChange(suggestion);
     }
-    // Keep suggestions visible - don't hide them
   };
 
   const handleAnswerSuggestionClick = () => {
     if (answerSuggestion) {
-      // For dropdown questions, use the suggestion directly (it should be an exact option)
       if (question.type === 'dropdown' && question.options) {
-        // The backend already returns the exact option name
         const matchedOption = question.options.find(
-          (option) => option.toLowerCase() === answerSuggestion.toLowerCase()
+          (option) => option.toLowerCase() === answerSuggestion.toLowerCase(),
         );
         if (matchedOption) {
           handleInputChange(matchedOption);
         } else {
-          // Fallback: try partial match
           const partialMatch = question.options.find(
             (option) =>
               option.toLowerCase().includes(answerSuggestion.toLowerCase()) ||
-              answerSuggestion.toLowerCase().includes(option.toLowerCase())
+              answerSuggestion.toLowerCase().includes(option.toLowerCase()),
           );
           handleInputChange(partialMatch || answerSuggestion);
         }
       } else {
-        // For text/textarea, use suggestion directly
         handleInputChange(answerSuggestion);
       }
     }
@@ -251,12 +237,8 @@ export default function QuestionBlock({
 
   const handleInputChange = (newValue: string) => {
     setValue(newValue);
-    // Don't auto-save - only update local state
-    // User must click Next button to save and proceed
-    
-    // Reset dependent location fields when parent selection changes
+
     if (question.id === 'country') {
-      // Reset state and city when country changes
       const stateAnswer = getAnswerById('state');
       const cityAnswer = getAnswerById('city');
       if (stateAnswer) {
@@ -266,7 +248,6 @@ export default function QuestionBlock({
         updateAnswer('city', '');
       }
     } else if (question.id === 'state') {
-      // Reset city when state changes
       const cityAnswer = getAnswerById('city');
       if (cityAnswer) {
         updateAnswer('city', '');
@@ -278,9 +259,7 @@ export default function QuestionBlock({
     if (question.type === 'dropdown') {
       let dropdownOptions = question.options || [];
 
-      // Dynamic location-based dropdowns
       if (question.id === 'state') {
-        // Get country selection from answers
         const countryAnswer = getAnswerById('country');
         if (countryAnswer && countryAnswer.answerValue) {
           dropdownOptions = getStatesForCountry(countryAnswer.answerValue);
@@ -288,7 +267,6 @@ export default function QuestionBlock({
           dropdownOptions = ['Please select a country first'];
         }
       } else if (question.id === 'city') {
-        // Get country and state selections from answers
         const countryAnswer = getAnswerById('country');
         const stateAnswer = getAnswerById('state');
         if (countryAnswer && stateAnswer && countryAnswer.answerValue && stateAnswer.answerValue) {
@@ -300,12 +278,14 @@ export default function QuestionBlock({
         }
       }
 
+      const isDisabled =
+        dropdownOptions.length === 0 || dropdownOptions[0]?.toLowerCase().includes('please select');
+
       return (
-        <select
+        <DropdownSelect
           value={value}
           onChange={(e) => handleInputChange(e.target.value)}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors bg-white"
-          disabled={dropdownOptions.length === 0 || dropdownOptions[0]?.includes('Please select')}
+          disabled={isDisabled}
         >
           <option value="">Select an option...</option>
           {dropdownOptions.map((option) => (
@@ -313,199 +293,142 @@ export default function QuestionBlock({
               {option}
             </option>
           ))}
-        </select>
+        </DropdownSelect>
       );
     }
 
     if (question.type === 'textarea') {
       return (
-        <textarea
+        <MultilineTextarea
           value={value}
           onChange={(e) => handleInputChange(e.target.value)}
-          placeholder={question.placeholder || "Type your answer..."}
+          placeholder={question.placeholder || 'Type your answer...'}
           rows={6}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors resize-y"
         />
       );
     }
 
     return (
-      <input
-        type="text"
+      <TextInput
         value={value}
         onChange={(e) => handleInputChange(e.target.value)}
-        placeholder={question.placeholder || "Type your answer..."}
-        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
+        placeholder={question.placeholder || 'Type your answer...'}
       />
     );
   };
 
-  // Form-based layout for all questions (active and answered)
+  const helperMessageStateMissing =
+    question.id === 'state' && !getAnswerById('country')?.answerValue ? 'Please select a country first' : '';
+  const helperMessageCityMissing =
+    question.id === 'city' && (!getAnswerById('country')?.answerValue || !getAnswerById('state')?.answerValue)
+      ? 'Please select a country and state first'
+      : '';
+
   return (
-    <div className="mb-6 animate-slide-in">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6" style={{ overflow: 'visible', minHeight: isActive ? '400px' : 'auto' }}>
-        {/* Question Title - Bold heading */}
-        <h3 className="text-lg font-bold text-gray-900 mb-4">
-          {question.title}
-        </h3>
-
-        {/* Input Field - Always editable */}
-        <div className="mb-4">
-          {renderInput()}
-          
-          {/* Helper text for location-dependent fields */}
-          {question.id === 'state' && !getAnswerById('country')?.answerValue && (
-            <p className="mt-2 text-sm text-amber-600 flex items-center gap-1">
-              <span>⚠️</span>
-              <span>Please select a country first</span>
-            </p>
-          )}
-          {question.id === 'city' && (!getAnswerById('country')?.answerValue || !getAnswerById('state')?.answerValue) && (
-            <p className="mt-2 text-sm text-amber-600 flex items-center gap-1">
-              <span>⚠️</span>
-              <span>Please select a country and state first</span>
-            </p>
-          )}
-        </div>
-
-        {/* AI Suggestions Section - Always show for questions that need AI suggestions */}
-        {shouldShowAISuggestions && (
-          <div className="mb-4 border-t border-gray-200 pt-4">
-            <div className="flex items-center gap-2 mb-3">
-              <p className="text-sm font-semibold text-gray-700">
-                ✨ AI Suggestions
-              </p>
-            </div>
-            
-            {/* Always show something - loading, content, or message */}
-            {(loadingSuggestions || loadingAnswerSuggestion) && suggestions.length === 0 && !answerSuggestion && !errorSuggestions && !errorAnswerSuggestion && (
-              <div className="text-sm text-gray-500 italic mb-3">
-                ⏳ Generating AI suggestions...
-              </div>
+    <div className="animate-slide-in">
+      <UiCard>
+        <div className="flex flex-col gap-8 lg:flex-row">
+          <div
+            className={classNames(
+              'flex-1 space-y-4',
+              shouldShowAISuggestions ? 'lg:pr-6' : '',
             )}
+          >
+            <div>
+              <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{question.section}</p>
+              <h3 className="mt-1 text-xl font-semibold text-[var(--text-dark)]">{question.title}</h3>
+            </div>
+            <div className="space-y-3">
+              {renderInput()}
+              {helperMessageStateMissing && (
+                <p className="text-sm text-amber-600">⚠️ {helperMessageStateMissing}</p>
+              )}
+              {helperMessageCityMissing && (
+                <p className="text-sm text-amber-600">⚠️ {helperMessageCityMissing}</p>
+              )}
+            </div>
+          </div>
 
-            {/* Combined AI Suggestions - Merge answerSuggestion and suggestions into one list */}
-            {((answerSuggestion && !loadingAnswerSuggestion) || suggestions.length > 0) && (
-              <div className="space-y-2 mb-3">
-                {/* Loading state */}
-                {(loadingSuggestions || loadingAnswerSuggestion) && (
-                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    </div>
-                    <span>Generating suggestions...</span>
+          {shouldShowAISuggestions && (
+            <div className="lg:w-[320px]">
+              <AiSuggestionCard
+                className="bg-white"
+                description="Click a suggestion to autofill your response."
+              >
+                {(loadingSuggestions || loadingAnswerSuggestion) &&
+                  suggestions.length === 0 &&
+                  !answerSuggestion &&
+                  !errorSuggestions &&
+                  !errorAnswerSuggestion && (
+                    <p className="text-sm text-[var(--text-muted)]">⏳ Generating AI suggestions...</p>
+                  )}
+
+                {((answerSuggestion && !loadingAnswerSuggestion) || suggestions.length > 0) && (
+                  <div className="space-y-2">
+                    {(loadingSuggestions || loadingAnswerSuggestion) && (
+                      <p className="text-sm text-[var(--text-muted)]">Generating suggestions...</p>
+                    )}
+                    {(() => {
+                      const allSuggestions: string[] = [];
+                      if (answerSuggestion && !loadingAnswerSuggestion) {
+                        allSuggestions.push(answerSuggestion);
+                      }
+                      allSuggestions.push(...suggestions);
+                      if (allSuggestions.length === 0) return null;
+
+                      return allSuggestions.map((suggestion, index) => (
+                        <button
+                          key={`${suggestion}-${index}`}
+                          onClick={() =>
+                            index === 0 && answerSuggestion
+                              ? handleAnswerSuggestionClick()
+                              : handleSuggestionClick(suggestion)
+                          }
+                          className="w-full rounded-[var(--radius-input)] border border-[var(--border)] px-4 py-2 text-left text-sm text-[var(--text-dark)] transition-colors hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-light)]/60"
+                        >
+                          <span className="mr-2 text-xs font-semibold text-[var(--text-muted)]">{index + 1}.</span>
+                          {suggestion}
+                        </button>
+                      ));
+                    })()}
+                    <p className="text-xs text-[var(--text-muted)]">💡 Tap any suggestion to use it as your answer.</p>
                   </div>
                 )}
 
-                {/* Combined list of all suggestions */}
-                {(() => {
-                  // Combine answerSuggestion (if exists) with suggestions array
-                  const allSuggestions: string[] = [];
-                  if (answerSuggestion && !loadingAnswerSuggestion) {
-                    allSuggestions.push(answerSuggestion);
-                  }
-                  allSuggestions.push(...suggestions);
-                  
-                  if (allSuggestions.length === 0) return null;
-                  
-                  return (
-                    <>
-                      {allSuggestions.map((suggestion, index) => (
-                        <button
-                          key={index}
-                          onClick={() => {
-                            // Use the same handler for both types
-                            if (index === 0 && answerSuggestion) {
-                              handleAnswerSuggestionClick();
-                            } else {
-                              handleSuggestionClick(suggestion);
-                            }
-                          }}
-                          className={`text-left px-4 py-2 rounded-lg transition-colors text-sm w-full border ${
-                            question.type === 'dropdown'
-                              ? 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
-                              : question.type === 'textarea'
-                              ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
-                              : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                          }`}
-                        >
-                          <div className="flex items-start gap-2">
-                            <span className="text-xs font-bold opacity-60 mt-0.5">{index + 1}.</span>
-                            <span className="flex-1">{suggestion}</span>
-                          </div>
-                        </button>
-                      ))}
-                      <p className="text-xs text-gray-500 mt-2 italic">
-                        💡 Click any suggestion to use it as your answer
-                      </p>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
+                {errorSuggestions && !loadingSuggestions && (
+                  <p className="text-xs text-amber-600">{errorSuggestions}</p>
+                )}
+                {errorAnswerSuggestion && !loadingAnswerSuggestion && (
+                  <p className="text-xs text-amber-600">{errorAnswerSuggestion}</p>
+                )}
 
-            {/* Error Messages */}
-            {errorSuggestions && !loadingSuggestions && (
-              <div className="mb-3">
-                <p className="text-xs text-amber-600 italic">{errorSuggestions}</p>
-              </div>
-            )}
-            {errorAnswerSuggestion && !loadingAnswerSuggestion && (
-              <div className="mb-3">
-                <p className="text-xs text-amber-600 italic">{errorAnswerSuggestion}</p>
-              </div>
-            )}
+                {!loadingSuggestions &&
+                  !loadingAnswerSuggestion &&
+                  suggestions.length === 0 &&
+                  !answerSuggestion &&
+                  !errorSuggestions &&
+                  !errorAnswerSuggestion &&
+                  isActive && (
+                    <p className="text-sm text-[var(--text-muted)]">
+                      💭 AI suggestions are being generated based on your previous answers...
+                    </p>
+                  )}
+              </AiSuggestionCard>
+            </div>
+          )}
+        </div>
 
-            {/* No Suggestions Available - Show helpful message */}
-            {!loadingSuggestions && !loadingAnswerSuggestion && 
-             suggestions.length === 0 && !answerSuggestion && !errorSuggestions && !errorAnswerSuggestion && isActive && (
-              <div className="text-sm text-gray-500 italic mb-3">
-                💭 AI suggestions are being generated based on your previous answers...
-              </div>
-            )}
-
-          </div>
-        )}
-
-        {/* Next Button - Always show for active questions */}
         {isActive && (
-          <div className="mt-6 pt-4 border-t-2 border-gray-300" style={{ clear: 'both', width: '100%' }}>
-            <button
-              type="button"
-              onClick={handleNext}
-              disabled={!value.trim()}
-              className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform ${
-                value.trim()
-                  ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] shadow-lg hover:shadow-xl'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
-              style={{ 
-                display: 'block',
-                visibility: 'visible',
-                opacity: 1,
-                width: '100%',
-                boxSizing: 'border-box'
-              }}
-            >
-              {value.trim() ? (
-                <>
-                  {isLastQuestion ? '✓ Generate Summary' : '→ Next Question'}
-                </>
-              ) : (
-                'Type your answer to continue'
-              )}
-            </button>
+          <div className="mt-8 border-t border-[var(--border)] pt-6">
+            <PrimaryButton type="button" onClick={handleNext} disabled={!value.trim()}>
+              {value.trim() ? (isLastQuestion ? 'Generate Summary' : 'Next Question') : 'Type your answer to continue'}
+            </PrimaryButton>
             {value.trim() && (
-              <p className="text-center text-sm text-green-600 mt-2 font-semibold animate-pulse">
-                ✓ Ready to proceed!
-              </p>
+              <p className="mt-2 text-center text-sm font-semibold text-green-600">✓ Ready to proceed!</p>
             )}
           </div>
         )}
-      </div>
+      </UiCard>
     </div>
   );
 }
-

@@ -1,0 +1,19 @@
+.ugc-nav {
+  backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--border);
+}
+
+.ugc-step-chip {
+  transition: background-color 150ms ease, color 150ms ease,
+    border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.ugc-step-chip:hover {
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.15);
+}
+
+.ugc-sticky-panel {
+  position: sticky;
+  top: 1.5rem;
+}

@@ -8,7 +8,7 @@ export default function Home() {
   const { isComplete } = useFormStore();
 
   return (
-    <main className="min-h-screen bg-gray-100">
+    <main className="min-h-screen bg-background text-text-dark">
       {isComplete ? <SummaryPage /> : <FormWizard />}
     </main>
   );

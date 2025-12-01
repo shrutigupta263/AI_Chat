@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useFormStore } from '@/store/form_store';
+import UiCard from './ui/ui_card';
+import MultilineTextarea from './ui/multiline_textarea';
 
 interface SceneBlockProps {
   sceneId: string;
@@ -10,6 +12,8 @@ interface SceneBlockProps {
   canDelete: boolean;
   combinedSuggestions?: string[];
   onSuggestionClick?: (suggestion: string, sceneNumber: number) => void;
+  layout?: 'card' | 'plain';
+  onFocus?: () => void;
 }
 
 export default function SceneBlock({
@@ -19,15 +23,16 @@ export default function SceneBlock({
   canDelete,
   combinedSuggestions = [],
   onSuggestionClick,
+  layout = 'card',
+  onFocus,
 }: SceneBlockProps) {
   const { scenes, updateScene, removeScene, setAnswer, getAnswerById } = useFormStore();
   const [value, setValue] = useState('');
 
-  // Load existing answer if available and sync with scene content
   useEffect(() => {
     const existingAnswer = getAnswerById(sceneId);
     const scene = scenes.find((s) => s.id === sceneId);
-    
+
     if (existingAnswer) {
       setValue(existingAnswer.answerValue);
     } else if (scene && scene.content) {
@@ -38,53 +43,69 @@ export default function SceneBlock({
   const handleChange = (newValue: string) => {
     setValue(newValue);
     updateScene(sceneId, newValue);
-    
-    // Also update in answers for summary
     setAnswer(sceneId, `Scene ${sceneNumber}`, newValue);
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     if (onSuggestionClick) {
       onSuggestionClick(suggestion, sceneNumber);
-      // Also update local state
       setValue(suggestion);
     } else {
       handleChange(suggestion);
     }
   };
 
-  // Same card UI as other questions
+  const Wrapper = layout === 'card' ? UiCard : 'div';
+  const wrapperProps =
+    layout === 'card'
+      ? {}
+      : {
+          className: 'rounded-2xl border border-dashed border-[var(--border)] bg-white/80 p-5',
+        };
+
   return (
-    <div className="mb-6 animate-slide-in">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6" style={{ overflow: 'visible' }}>
-        {/* Question Title - Bold heading */}
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-bold text-gray-900">
-            Scene {sceneNumber}
-          </h3>
+    <Wrapper {...wrapperProps}>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Video Script</p>
+            <h3 className="text-xl font-semibold text-[var(--text-dark)]">Scene {sceneNumber}</h3>
+          </div>
           {canDelete && isActive && (
             <button
+              type="button"
               onClick={() => removeScene(sceneId)}
-              className="text-red-500 hover:text-red-700 text-sm font-semibold"
+              className="text-sm font-semibold text-red-500 hover:text-red-600"
             >
               ✕ Remove
             </button>
           )}
         </div>
 
-        {/* Input Field */}
-        <div className="mb-4">
-          <textarea
-            value={value}
-            onChange={(e) => handleChange(e.target.value)}
-            placeholder="Describe what happens in this scene..."
-            rows={6}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors resize-y"
-            disabled={!isActive}
-          />
-        </div>
+        <MultilineTextarea
+          value={value}
+          onFocus={onFocus}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder="Describe what happens in this scene..."
+          disabled={!isActive}
+        />
+
+        {combinedSuggestions.length > 0 && isActive && (
+          <div className="space-y-2 text-sm text-[var(--text-muted)]">
+            {combinedSuggestions.slice(0, 2).map((suggestion, index) => (
+              <button
+                key={`${sceneId}-suggestion-${index}`}
+                type="button"
+                onClick={() => handleSuggestionClick(suggestion)}
+                className="w-full rounded-[var(--radius-input)] border border-[var(--border)] px-4 py-2 text-left transition hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-light)]/60"
+              >
+                {suggestion}
+              </button>
+            ))}
+            <p className="text-xs">💡 Tap to quickly apply this suggestion.</p>
+          </div>
+        )}
       </div>
-    </div>
+    </Wrapper>
   );
 }
-
