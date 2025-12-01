@@ -372,20 +372,6 @@ export default function QuestionBlock({
         {shouldShowAISuggestions && (
           <div className="mb-4 border-t border-gray-200 pt-4">
             <div className="flex items-center gap-2 mb-3">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 text-gray-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-                />
-              </svg>
               <p className="text-sm font-semibold text-gray-700">
                 ✨ AI Suggestions
               </p>
@@ -398,78 +384,77 @@ export default function QuestionBlock({
               </div>
             )}
 
-            {/* AI Answer Suggestion - Single suggestion button (show for all questions) */}
-            {loadingAnswerSuggestion ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                </div>
-                <span>Generating recommendation...</span>
-              </div>
-            ) : answerSuggestion ? (
-              <div className="mb-3">
-                <p className="text-xs font-semibold text-gray-600 mb-1">✨ AI Recommended Answer:</p>
-                <button
-                  onClick={handleAnswerSuggestionClick}
-                  className="text-left px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-700 w-full"
-                >
-                  {answerSuggestion}
-                </button>
-              </div>
-            ) : errorAnswerSuggestion ? (
-              <div className="mb-3">
-                <p className="text-xs text-amber-600 italic">{errorAnswerSuggestion}</p>
-              </div>
-            ) : null}
-
-            {/* Multiple AI Suggestions - Show when we have suggestions */}
-            {suggestions.length > 0 && (
+            {/* Combined AI Suggestions - Merge answerSuggestion and suggestions into one list */}
+            {((answerSuggestion && !loadingAnswerSuggestion) || suggestions.length > 0) && (
               <div className="space-y-2 mb-3">
-                <p className="text-xs font-semibold text-gray-600 mb-2">
-                  {suggestions.length} AI Suggestion{suggestions.length > 1 ? 's' : ''}:
-                </p>
-                {suggestions.map((suggestion, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleSuggestionClick(suggestion)}
-                    className={`text-left px-4 py-2 rounded-lg transition-colors text-sm w-full border ${
-                      question.type === 'dropdown'
-                        ? 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
-                        : question.type === 'textarea'
-                        ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
-                        : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs font-bold opacity-60 mt-0.5">{index + 1}.</span>
-                      <span className="flex-1">{suggestion}</span>
+                {/* Loading state */}
+                {(loadingSuggestions || loadingAnswerSuggestion) && (
+                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+                    <div className="flex gap-1">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                     </div>
-                  </button>
-                ))}
-                <p className="text-xs text-gray-500 mt-2 italic">
-                  💡 Click any suggestion to use it as your answer
-                </p>
+                    <span>Generating suggestions...</span>
+                  </div>
+                )}
+
+                {/* Combined list of all suggestions */}
+                {(() => {
+                  // Combine answerSuggestion (if exists) with suggestions array
+                  const allSuggestions: string[] = [];
+                  if (answerSuggestion && !loadingAnswerSuggestion) {
+                    allSuggestions.push(answerSuggestion);
+                  }
+                  allSuggestions.push(...suggestions);
+                  
+                  if (allSuggestions.length === 0) return null;
+                  
+                  return (
+                    <>
+                      {allSuggestions.map((suggestion, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            // Use the same handler for both types
+                            if (index === 0 && answerSuggestion) {
+                              handleAnswerSuggestionClick();
+                            } else {
+                              handleSuggestionClick(suggestion);
+                            }
+                          }}
+                          className={`text-left px-4 py-2 rounded-lg transition-colors text-sm w-full border ${
+                            question.type === 'dropdown'
+                              ? 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
+                              : question.type === 'textarea'
+                              ? 'bg-green-50 text-green-800 border-green-200 hover:bg-green-100'
+                              : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="text-xs font-bold opacity-60 mt-0.5">{index + 1}.</span>
+                            <span className="flex-1">{suggestion}</span>
+                          </div>
+                        </button>
+                      ))}
+                      <p className="text-xs text-gray-500 mt-2 italic">
+                        💡 Click any suggestion to use it as your answer
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
             )}
 
-            {/* Loading Suggestions */}
-            {loadingSuggestions && suggestions.length === 0 && !errorSuggestions && (
-              <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                </div>
-                <span>Loading AI suggestions...</span>
-              </div>
-            )}
-
-            {/* Error Message for Suggestions */}
+            {/* Error Messages */}
             {errorSuggestions && !loadingSuggestions && (
               <div className="mb-3">
                 <p className="text-xs text-amber-600 italic">{errorSuggestions}</p>
+              </div>
+            )}
+            {errorAnswerSuggestion && !loadingAnswerSuggestion && (
+              <div className="mb-3">
+                <p className="text-xs text-amber-600 italic">{errorAnswerSuggestion}</p>
               </div>
             )}
 

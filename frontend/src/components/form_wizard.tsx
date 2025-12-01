@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useFormStore } from '@/store/form_store';
 import { FORM_QUESTIONS, Question } from '@/config/questions';
+import { getSuggestions, getAnswerSuggestion } from '@/services/api';
 import QuestionBlock from './question_block';
 import SceneBlock from './scene_block';
 
@@ -14,11 +15,68 @@ export default function FormWizard() {
     scenes,
     addScene,
     setAnswer,
+    updateScene,
+    answers,
   } = useFormStore();
 
   const [visibleQuestions, setVisibleQuestions] = useState<Question[]>([]);
   const [showScenes, setShowScenes] = useState(false);
   const [showAddSceneButton, setShowAddSceneButton] = useState(false);
+  const [combinedSceneSuggestions, setCombinedSceneSuggestions] = useState<string[]>([]);
+  const [loadingSceneSuggestions, setLoadingSceneSuggestions] = useState(false);
+
+  // Fetch combined AI suggestions for scenes
+  const fetchCombinedSceneSuggestions = useCallback(async () => {
+    if (currentQuestionIndex !== 17 && currentQuestionIndex !== 18) return;
+    
+    setLoadingSceneSuggestions(true);
+    try {
+      const previousAnswers = answers.map((a) => ({
+        question: a.questionTitle,
+        answer: a.answerValue,
+      }));
+
+      // Fetch suggestions for both scenes and combine them
+      const [scene1Suggestions, scene2Suggestions, scene1Answer, scene2Answer] = await Promise.all([
+        getSuggestions({
+          currentQuestion: 'Scene 1',
+          questionType: 'scene',
+          previousAnswers,
+        }),
+        getSuggestions({
+          currentQuestion: 'Scene 2',
+          questionType: 'scene',
+          previousAnswers,
+        }),
+        getAnswerSuggestion({
+          currentQuestion: 'Scene 1',
+          questionType: 'scene',
+          previousAnswers,
+        }),
+        getAnswerSuggestion({
+          currentQuestion: 'Scene 2',
+          questionType: 'scene',
+          previousAnswers,
+        }),
+      ]);
+
+      // Combine all suggestions into one array
+      const allSuggestions: string[] = [];
+      if (scene1Answer) allSuggestions.push(scene1Answer);
+      if (scene2Answer) allSuggestions.push(scene2Answer);
+      allSuggestions.push(...scene1Suggestions);
+      allSuggestions.push(...scene2Suggestions);
+
+      // Remove duplicates and limit to 5
+      const uniqueSuggestions = Array.from(new Set(allSuggestions)).slice(0, 5);
+      setCombinedSceneSuggestions(uniqueSuggestions);
+    } catch (error) {
+      console.error('Error fetching scene suggestions:', error);
+      setCombinedSceneSuggestions([]);
+    } finally {
+      setLoadingSceneSuggestions(false);
+    }
+  }, [currentQuestionIndex, answers]);
 
   useEffect(() => {
     // Determine which questions to show
@@ -52,20 +110,25 @@ export default function FormWizard() {
     
     setVisibleQuestions(questionsToShow);
 
-    // Show scenes section when we reach scene questions (indices 9 or 10)
-    // Keep them visible even after moving past (index 11+) so users can see their answers
-    if (currentQuestionIndex >= 9) {
+    // Show scenes section when we reach scene questions (indices 17 or 18)
+    // Keep them visible even after moving past (index 19+) so users can see their answers
+    if (currentQuestionIndex >= 17) {
       setShowScenes(true);
     }
 
     // Check if we should show "Add Scene" button
-    // Show it only when actively on scene questions (indices 9 or 10)
-    if (currentQuestionIndex === 9 || currentQuestionIndex === 10) {
+    // Show it only when actively on scene questions (indices 17 or 18)
+    if (currentQuestionIndex === 17 || currentQuestionIndex === 18) {
       setShowAddSceneButton(true);
     } else {
       setShowAddSceneButton(false);
     }
-  }, [currentQuestionIndex]);
+
+    // Fetch combined suggestions when on scene questions
+    if (currentQuestionIndex === 17 || currentQuestionIndex === 18) {
+      fetchCombinedSceneSuggestions();
+    }
+  }, [currentQuestionIndex, fetchCombinedSceneSuggestions]);
 
   // Scroll to active question when it changes
   useEffect(() => {
@@ -86,7 +149,13 @@ export default function FormWizard() {
     nextQuestion();
   };
 
-  const handleScenesComplete = () => {
+  const handleSceneSuggestionClick = (suggestion: string, sceneNumber: number) => {
+    const sceneId = `scene_${sceneNumber}`;
+    updateScene(sceneId, suggestion);
+    setAnswer(sceneId, `Scene ${sceneNumber}`, suggestion);
+  };
+
+  const handleScenesNext = () => {
     // Save all scenes to answers
     scenes.forEach((scene, index) => {
       if (scene.content) {
@@ -94,8 +163,7 @@ export default function FormWizard() {
       }
     });
     
-    // Simply advance to the next question (maintains natural flow)
-    // This will advance from scene_1 (index 9) -> scene_2 (index 10) -> video_ending (index 11)
+    // Advance to the next question
     nextQuestion();
   };
 
@@ -138,55 +206,109 @@ export default function FormWizard() {
                 />
               </div>
               
-              {/* Insert Scenes Section after video_opener (index 8) when we reach scene questions */}
-              {actualIndex === 8 && showScenes && (
-                <div className="mb-8 animate-slide-in">
-                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border-2 border-purple-200">
-                    <h3 className="text-2xl font-bold text-gray-800 mb-4">
-                      Video Script - Scenes
-                    </h3>
-                    {(currentQuestionIndex === 9 || currentQuestionIndex === 10) && (
-                      <p className="text-gray-600 mb-6">
-                        Describe what happens in each scene of your video
-                      </p>
-                    )}
+              {/* Insert Scenes Section after video_opener (index 16) when we reach scene questions */}
+              {actualIndex === 16 && showScenes && (
+                <div className="mb-8">
+                  {/* Scene Blocks - Same card UI as other questions */}
+                  {scenes.map((scene, index) => (
+                    <SceneBlock
+                      key={scene.id}
+                      sceneId={scene.id}
+                      sceneNumber={index + 1}
+                      isActive={currentQuestionIndex === 17 || currentQuestionIndex === 18}
+                      canDelete={scenes.length > 2}
+                      combinedSuggestions={combinedSceneSuggestions}
+                      onSuggestionClick={handleSceneSuggestionClick}
+                    />
+                  ))}
 
-                    {/* Scene Blocks */}
-                    {scenes.map((scene, index) => (
-                      <SceneBlock
-                        key={scene.id}
-                        sceneId={scene.id}
-                        sceneNumber={index + 1}
-                        isActive={currentQuestionIndex === 9 || currentQuestionIndex === 10} // Active only when on scene questions
-                        canDelete={scenes.length > 2}
-                      />
-                    ))}
+                  {/* Combined AI Suggestions for Both Scenes */}
+                  {(currentQuestionIndex === 17 || currentQuestionIndex === 18) && (
+                    <div className="mb-6 animate-slide-in">
+                      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <div className="mb-4 border-b border-gray-200 pb-3">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-700">
+                              ✨ AI Suggestions for Scenes
+                            </p>
+                          </div>
+                        </div>
 
-                    {/* Add Scene Button */}
-                    {showAddSceneButton && (
+                        {/* Loading state */}
+                        {loadingSceneSuggestions && (
+                          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                            </div>
+                            <span>Generating suggestions...</span>
+                          </div>
+                        )}
+
+                        {/* Combined suggestions list */}
+                        {!loadingSceneSuggestions && combinedSceneSuggestions.length > 0 && (
+                          <div className="space-y-2 mb-3">
+                            {combinedSceneSuggestions.map((suggestion, index) => (
+                              <div key={index} className="flex gap-2">
+                                <button
+                                  onClick={() => handleSceneSuggestionClick(suggestion, 1)}
+                                  className="flex-1 text-left px-4 py-2 bg-green-50 text-green-800 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm"
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-xs font-bold opacity-60 mt-0.5">{index + 1}.</span>
+                                    <span className="flex-1">{suggestion}</span>
+                                    <span className="text-xs text-green-600">→ Scene 1</span>
+                                  </div>
+                                </button>
+                                <button
+                                  onClick={() => handleSceneSuggestionClick(suggestion, 2)}
+                                  className="flex-1 text-left px-4 py-2 bg-green-50 text-green-800 border border-green-200 rounded-lg hover:bg-green-100 transition-colors text-sm"
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-xs font-bold opacity-60 mt-0.5">{index + 1}.</span>
+                                    <span className="flex-1">{suggestion}</span>
+                                    <span className="text-xs text-green-600">→ Scene 2</span>
+                                  </div>
+                                </button>
+                              </div>
+                            ))}
+                            <p className="text-xs text-gray-500 mt-2 italic">
+                              💡 Click any suggestion to use it for Scene 1 or Scene 2
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Add Scene Button */}
+                  {showAddSceneButton && (
+                    <div className="mb-6">
                       <button
                         onClick={addScene}
-                        className="w-full py-3 px-4 border-2 border-dashed border-purple-300 rounded-lg text-purple-600 font-semibold hover:bg-purple-50 transition-colors"
+                        className="w-full py-3 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
                       >
                         + Add Another Scene
                       </button>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Continue Button after Scenes */}
-                    {/* Show button when user is at scene questions (indices 9 or 10) */}
-                    {(currentQuestionIndex === 9 || currentQuestionIndex === 10) && (
-                      <div className="mt-6">
+                  {/* Next Question Button after Scenes */}
+                  {(currentQuestionIndex === 17 || currentQuestionIndex === 18) && (
+                    <div className="mb-6">
+                      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                         <button
-                          onClick={handleScenesComplete}
+                          onClick={handleScenesNext}
                           disabled={scenes.length < 2 || !scenes[0]?.content?.trim() || !scenes[1]?.content?.trim()}
                           className={`w-full py-4 rounded-lg font-bold text-lg transition-all transform ${
                             scenes.length >= 2 && scenes[0]?.content?.trim() && scenes[1]?.content?.trim()
-                              ? 'bg-purple-600 text-white hover:bg-purple-700 hover:scale-[1.02] shadow-lg hover:shadow-xl'
+                              ? 'bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] shadow-lg hover:shadow-xl'
                               : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                           }`}
                         >
                           {scenes.length >= 2 && scenes[0]?.content?.trim() && scenes[1]?.content?.trim() ? (
-                            <>→ Continue to Next Question</>
+                            <>→ Next Question</>
                           ) : (
                             'Fill both scenes to continue'
                           )}
@@ -197,8 +319,8 @@ export default function FormWizard() {
                           </p>
                         )}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

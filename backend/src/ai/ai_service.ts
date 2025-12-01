@@ -54,7 +54,7 @@ For dropdown questions, provide suggestions that:
 - Explain WHY that option is best for their use case
 - Consider their previous answers to make the recommendation
 - Format: "Select [Option Name] - [Brief reason why]" or "Choose [Option] because [reason]"
-- Provide 3-5 different option recommendations with reasoning`;
+- Provide 4-5 different option recommendations with reasoning`;
       } else if (questionType === "textarea") {
         typeSpecificInstructions = `This is a TEXTAREA question (multi-line text input).
 
@@ -82,7 +82,7 @@ For scene questions, provide:
 - Varied scene concepts that can be used directly`;
       }
 
-      const prompt = `You are helping to fill out a UGC (User Generated Content) campaign brief form. Generate 5-7 diverse, useful, and specific suggestions for the following question.
+      const prompt = `You are helping to fill out a UGC (User Generated Content) campaign brief form. Generate 4-5 diverse, useful, and specific suggestions for the following question.
 
 Current Question: ${currentQuestion}
 Question Type: ${questionType}
@@ -101,7 +101,7 @@ ${
 }
 
 Requirements:
-- Generate 5-7 DIFFERENT suggestions (not variations of the same idea)
+- Generate 4-5 DIFFERENT suggestions (not variations of the same idea)
 - Each suggestion should be UNIQUE and offer a different perspective
 - Make them practical, actionable, and ready to use
 - CRITICAL: If previous answers exist, you MUST reference and build upon them
@@ -138,7 +138,7 @@ Generate diverse, varied suggestions now:`;
         .split("\n")
         .map((s) => s.trim())
         .filter((s) => s.length > 0)
-        .slice(0, 7); // Max 7 suggestions for variety
+        .slice(0, 5); // Max 5 suggestions for variety
 
       // For dropdown questions, try to extract option names from suggestions
       if (questionType === "dropdown" && options && options.length > 0) {
@@ -173,7 +173,6 @@ Generate a clean, well-structured creative brief using the answers below. Follow
    - ### Product / Service Education
    - ### Video Information
    - ### Video Script
-   - ### Creator Preferences
    - ### Production Rules
 
 2. Under each section, organize the relevant answers with clear labels
