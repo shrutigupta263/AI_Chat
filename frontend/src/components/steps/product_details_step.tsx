@@ -5,11 +5,9 @@ import { Question } from '@/config/questions';
 import UiCard from '@/components/ui/ui_card';
 import DropdownSelect from '@/components/ui/dropdown_select';
 import MultilineTextarea from '@/components/ui/multiline_textarea';
-import TagChip from '@/components/ui/tag_chip';
 import PrimaryButton from '@/components/ui/primary_button';
 import SecondaryButton from '@/components/ui/secondary_button';
 import AiSuggestionCard from '@/components/ui/ai_suggestion_card';
-import TextInput from '@/components/ui/text_input';
 import { useFormStore } from '@/store/form_store';
 import { useAiSuggestions } from '@/hooks/use_ai_suggestions';
 
@@ -25,20 +23,8 @@ const CATEGORY_OPTIONS = [
   'Other',
 ];
 
-const USE_CASES = [
-  'Daily Use',
-  'Special Occasions',
-  'Professional',
-  'Personal',
-  'Gift',
-  'Entertainment',
-  'Problem Solving',
-  'Lifestyle Enhancement',
-];
-
 interface ProductDetailsStepProps {
   sellingPointsQuestion: Question;
-  linkQuestion: Question;
   onPrevious: () => void;
   onNext: () => void;
   isActive: boolean;
@@ -46,7 +32,6 @@ interface ProductDetailsStepProps {
 
 export default function ProductDetailsStep({
   sellingPointsQuestion,
-  linkQuestion,
   onPrevious,
   onNext,
   isActive,
@@ -55,8 +40,6 @@ export default function ProductDetailsStep({
 
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
-  const [useCases, setUseCases] = useState<string[]>([]);
-  const [productLink, setProductLink] = useState('');
   const [shouldFetchSuggestions, setShouldFetchSuggestions] = useState(false);
   const [suggestionSelected, setSuggestionSelected] = useState(false);
   const { suggestions, answerSuggestion, loading, error, canShowSuggestions } = useAiSuggestions(
@@ -74,22 +57,7 @@ export default function ProductDetailsStep({
     if (categoryAnswer) {
       setCategory(categoryAnswer.answerValue);
     }
-
-    const useCaseAnswer = getAnswerById('product_use_cases');
-    if (useCaseAnswer?.answerValue) {
-      setUseCases(
-        useCaseAnswer.answerValue
-          .split(',')
-          .map((item) => item.trim())
-          .filter(Boolean),
-      );
-    }
-
-    const productLinkAnswer = getAnswerById(linkQuestion.id);
-    if (productLinkAnswer) {
-      setProductLink(productLinkAnswer.answerValue);
-    }
-  }, [getAnswerById, sellingPointsQuestion.id, linkQuestion.id]);
+  }, [getAnswerById, sellingPointsQuestion.id]);
 
   // Reset suggestionSelected when field becomes empty
   useEffect(() => {
@@ -102,20 +70,6 @@ export default function ProductDetailsStep({
   const handleCategoryChange = (value: string) => {
     setCategory(value);
     setAnswer('product_category', 'Product Category', value);
-  };
-
-  const handleUseCaseToggle = (label: string) => {
-    setUseCases((prev) => {
-      const exists = prev.includes(label);
-      const next = exists ? prev.filter((item) => item !== label) : [...prev, label];
-      setAnswer('product_use_cases', 'Use Cases', next.join(', '));
-      return next;
-    });
-  };
-
-  const handleProductLinkChange = (value: string) => {
-    setProductLink(value);
-    setAnswer(linkQuestion.id, linkQuestion.title, value);
   };
 
   const handleSuggestionApply = (value: string) => {
@@ -160,15 +114,6 @@ export default function ProductDetailsStep({
           </div>
 
           <div>
-            <label className="mb-2 block text-base font-semibold text-[var(--text-dark)]">{linkQuestion.title}</label>
-            <TextInput
-              value={productLink}
-              onChange={(event) => handleProductLinkChange(event.target.value)}
-              placeholder={linkQuestion.placeholder || 'Drop the URL to your product or service page...'}
-            />
-          </div>
-
-          <div>
             <label className="mb-2 block text-base font-semibold text-[var(--text-dark)]">
               {sellingPointsQuestion.title}
             </label>
@@ -188,17 +133,6 @@ export default function ProductDetailsStep({
             <p className="mt-2 text-xs text-[var(--text-muted)]">
               Highlight the messages creators should lean on while talking about your product.
             </p>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-base font-semibold text-[var(--text-dark)]">Use Cases</label>
-            <div className="flex flex-wrap gap-2">
-              {USE_CASES.map((option) => (
-                <TagChip key={option} active={useCases.includes(option)} onClick={() => handleUseCaseToggle(option)}>
-                  {option}
-                </TagChip>
-              ))}
-            </div>
           </div>
         </div>
 

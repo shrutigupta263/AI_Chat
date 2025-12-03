@@ -31,6 +31,32 @@ export class AiService {
     });
   }
 
+  /**
+   * Detects if a question is a Step 1 basic info question that requires very short suggestions (1-2 words)
+   */
+  private isBasicInfoQuestion(question: string): boolean {
+    const normalizedQuestion = question.toLowerCase();
+    const basicInfoKeywords = [
+      "tell the creator about the product or service",
+      "what is the name of your product or service",
+      "who is the target audience",
+      "preferred visual style",
+      "color guideline",
+      "product or service",
+      "product name",
+      "target audience",
+      "visual style",
+      "in 1-3 words",
+      "in 1-2 words",
+      "concise",
+      "short",
+    ];
+
+    return basicInfoKeywords.some((keyword) =>
+      normalizedQuestion.includes(keyword)
+    );
+  }
+
   async getSuggestions(
     dto: SuggestionsRequestDto,
   ): Promise<SuggestionsResponseDto> {
@@ -42,11 +68,37 @@ export class AiService {
         .map((item) => `Q: ${item.question}\nA: ${item.answer}`)
         .join("\n\n");
 
+      // Detect if this is a Step 1 basic info question (needs very short suggestions: 1-2 words)
+      const isBasicInfoQuestion = this.isBasicInfoQuestion(currentQuestion);
+
       // Generate different prompts based on question type
       let typeSpecificInstructions = "";
       let suggestionFormat = "";
 
-      if (questionType === "dropdown" && options && options.length > 0) {
+      if (isBasicInfoQuestion) {
+        // Step 1 basic questions need VERY SHORT suggestions (1-2 words max)
+        typeSpecificInstructions = `This is a BASIC INFO question that requires VERY SHORT suggestions.
+
+CRITICAL REQUIREMENTS:
+- Generate ONLY 1-2 WORD suggestions (maximum 2 words per suggestion)
+- Each suggestion must be a short keyword or phrase (e.g., "skincare serum", "Gen Z", "Minimal")
+- Generate 4-5 DIFFERENT, CONTEXTUAL suggestions that directly relate to the question
+- Use previous answers to make suggestions more relevant and personalized
+- Each suggestion should be immediately usable as a fill-in-the-blank answer
+- AVOID long descriptions, sentences, or explanations
+- Return ONLY the short keyword/phrase, nothing else
+
+EXAMPLES:
+- Question: "Tell the creator about the product or service" → "skincare serum", "fitness app", "eco cleaner"
+- Question: "What is the name of your product" → "GlowSerum", "TaskFlow", "BrightDrop"  
+- Question: "Who is the target audience" → "Gen Z women", "Busy moms", "Fitness enthusiasts"
+- Question: "Preferred visual style" → "Minimal", "Vibrant", "Pastel neutrals"
+
+If previous answers exist, tailor suggestions based on them:
+- If product description is "skincare serum" → suggest related product names like "GlowSerum", "RadiancePlus"
+- If product name is "GlowSerum" → suggest relevant audiences like "beauty enthusiasts", "Gen Z"
+- If audience is "Gen Z" → suggest visual styles like "Vibrant", "Bold colors"`;
+      } else if (questionType === "dropdown" && options && options.length > 0) {
         typeSpecificInstructions = `This is a DROPDOWN question with the following options: ${options.join(", ")}.
 
 For dropdown questions, provide REALISTIC suggestions that:
@@ -88,7 +140,52 @@ For scene questions, provide REALISTIC, DETAILED scene descriptions:
 - AVOID vague descriptions - be specific about what viewers will see and hear`;
       }
 
-      const prompt = `You are a professional UGC campaign strategist helping to fill out a campaign brief form. Generate 4-5 REALISTIC, HIGH-QUALITY, and SPECIFIC suggestions for the following question.
+      let prompt = "";
+      
+      if (isBasicInfoQuestion) {
+        // Special prompt for Step 1 basic info questions - needs very short suggestions
+        prompt = `Generate 4-5 VERY SHORT keyword suggestions (1-2 words max) for this question.
+
+Current Question: ${currentQuestion}
+
+${typeSpecificInstructions}
+
+${
+  context
+    ? `PREVIOUS ANSWERS (CRITICAL - use these to make contextual, personalized suggestions):\n${context}\n\nYou MUST use the previous answers to generate relevant, contextual suggestions. Each suggestion should relate to what was already answered.
+
+CONTEXTUAL RULES:
+- Analyze the previous answers carefully
+- Generate suggestions that make sense with the previous answers
+- Each question should get DIFFERENT suggestions based on what came before
+
+EXAMPLES OF CONTEXTUAL SUGGESTIONS:
+- If previous answer: "skincare serum" (product description)
+  → For product name question: Suggest "GlowSerum", "RadiancePlus", "SkinGlow", "BriteLux"
+  → For audience question: Suggest "beauty enthusiasts", "Gen Z", "Skincare lovers"
+  → For visual style: Suggest "Clean minimal", "Soft pastels", "Natural tones"
+
+- If previous answers: "GlowSerum" (product name) + "beauty enthusiasts" (audience)
+  → For visual style: Suggest "Elegant luxury", "Soft glam", "Premium aesthetic"
+
+- If no previous answers: Generate diverse, realistic options without context
+
+CRITICAL: Make sure suggestions are DIFFERENT for each question and PERSONALIZED based on previous answers.\n`
+    : "This is the first question (no previous answers). Generate diverse, realistic short keyword suggestions that work well as starting points.\n"
+}
+
+REQUIREMENTS:
+- Return ONLY 4-5 suggestions
+- Each suggestion MUST be 1-2 words maximum  
+- Make suggestions DIFFERENT from each other
+- PERSONALIZE based on previous answers (if available)
+- Return ONLY the keywords, one per line, no explanations
+- Do not number or add prefixes
+
+Generate contextual, personalized short keyword suggestions now:`;
+      } else {
+        // Standard prompt for other question types
+        prompt = `You are a professional UGC campaign strategist helping to fill out a campaign brief form. Generate 4-5 REALISTIC, HIGH-QUALITY, and SPECIFIC suggestions for the following question.
 
 Current Question: ${currentQuestion}
 Question Type: ${questionType}
@@ -128,23 +225,28 @@ BAD (Generic): "Choose Instagram for better reach"
 GOOD (Realistic): "Select Instagram Reels - ideal for your target demographic of 18-34 year-olds in urban areas who prefer short-form video content (15-30 seconds) and visual storytelling with trending audio"
 
 Generate diverse, realistic, professional suggestions now:`;
+      }
 
       const completion = await this.openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content:
-              "You are a professional UGC campaign strategist with expertise in creating realistic, high-quality campaign briefs. You generate specific, detailed, and professional suggestions that sound authentic and ready-to-use. You always include concrete details, real-world scenarios, and avoid generic or filler content.",
+            content: isBasicInfoQuestion
+              ? "You are a helpful AI that generates very short keyword suggestions (1-2 words) for form fields. You provide concise, contextual, and diverse suggestions based on the question and previous answers."
+              : "You are a professional UGC campaign strategist with expertise in creating realistic, high-quality campaign briefs. You generate specific, detailed, and professional suggestions that sound authentic and ready-to-use. You always include concrete details, real-world scenarios, and avoid generic or filler content.",
           },
           {
             role: "user",
             content: prompt,
           },
         ],
-        temperature: 0.8,
-        max_tokens:
-          questionType === "textarea" || questionType === "scene" ? 500 : 400,
+        temperature: isBasicInfoQuestion ? 0.9 : 0.8, // Higher temperature for more variety in short suggestions
+        max_tokens: isBasicInfoQuestion
+          ? 100 // Much shorter for basic info questions (1-2 words each)
+          : questionType === "textarea" || questionType === "scene"
+          ? 500
+          : 400,
       });
 
       const responseText =
@@ -156,6 +258,17 @@ Generate diverse, realistic, professional suggestions now:`;
         .map((s) => s.trim())
         .filter((s) => s.length > 0)
         .slice(0, 5); // Max 5 suggestions for variety
+
+      // For basic info questions, ensure suggestions are very short (1-2 words)
+      if (isBasicInfoQuestion) {
+        suggestions = suggestions.map((s) => {
+          // Remove any numbering, bullets, or prefixes
+          s = s.replace(/^[\d\-\*•\.]\s*/, "").trim();
+          // Extract only first 2 words
+          const words = s.split(/\s+/).slice(0, 2);
+          return words.join(" ");
+        }).filter((s) => s.length > 0);
+      }
 
       // For dropdown questions, try to extract option names from suggestions
       if (questionType === "dropdown" && options && options.length > 0) {

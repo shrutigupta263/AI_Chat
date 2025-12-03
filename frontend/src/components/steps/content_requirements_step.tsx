@@ -7,7 +7,6 @@ import UiCard from '@/components/ui/ui_card';
 import PrimaryButton from '@/components/ui/primary_button';
 import SecondaryButton from '@/components/ui/secondary_button';
 import ContentFieldWithAi from './content_field_with_ai';
-import FormField from './form_field';
 import SceneBlock from '@/components/scene_block';
 
 interface ContentRequirementsStepProps {
@@ -39,7 +38,7 @@ export default function ContentRequirementsStep({
     .map((id) => questionMap[id])
     .filter((question): question is Question => Boolean(question));
 
-  const scriptQuestions = questions.filter((question) => question.type !== 'scene' && question.id !== 'references');
+  const scriptQuestions = questions.filter((question) => question.type !== 'scene');
 
   const mandatoryScriptFields = ['video_overview', 'video_opener', 'video_ending'];
   const isScriptComplete = mandatoryScriptFields.every((id) => (answerMap[id]?.trim() || '').length > 0);
@@ -94,14 +93,6 @@ export default function ContentRequirementsStep({
             <p className="text-sm text-amber-600">Add content for at least two scenes before continuing.</p>
           )}
         </div>
-
-        {questionMap['references'] && (
-          <FormField
-            question={questionMap['references']}
-            value={answerMap['references'] || ''}
-            onChange={(value) => setAnswer('references', questionMap['references'].title, value)}
-          />
-        )}
       </div>
 
       {isActive && (

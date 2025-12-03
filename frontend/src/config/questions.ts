@@ -33,24 +33,24 @@ export const FORM_QUESTIONS: Question[] = [
   // SECTION 0 — Context Building (No AI Suggestions)
   {
     id: 'product_description',
-    title: 'Tell the creator about the product or service.',
+    title: 'Tell the creator about the product or service',
     section: 'Context Building',
     type: 'text',
-    placeholder: 'Enter a brief description...',
+    placeholder: 'e.g., brightening serum',
   },
   {
     id: 'product_name',
     title: 'What is the name of your product or service?',
     section: 'Context Building',
     type: 'text',
-    placeholder: 'Enter the name...',
+    placeholder: 'e.g., GlowSerum',
   },
   {
     id: 'target_audience',
-    title: 'Who is your target audience or ideal user?',
+    title: 'Who is the target audience?',
     section: 'Context Building',
     type: 'text',
-    placeholder: 'Describe your target audience...',
+    placeholder: 'e.g., Gen Z women',
   },
   {
     id: 'main_problem',
@@ -82,10 +82,10 @@ export const FORM_QUESTIONS: Question[] = [
   },
   {
     id: 'product_vibe',
-    title: 'How would you describe the vibe or style of your product? (Professional, youthful, premium, minimalist)',
+    title: 'Preferred visual style or color guideline',
     section: 'Context Building',
     type: 'text',
-    placeholder: 'e.g., Professional, youthful, premium, minimalist...',
+    placeholder: 'e.g., Minimal neutrals',
   },
   {
     id: 'primary_goal',

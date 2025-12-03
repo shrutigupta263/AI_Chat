@@ -7,7 +7,6 @@ import { FORM_QUESTIONS, Question } from '@/config/questions';
 import StepChip from './ui/step_chip';
 import BasicInfoStep from './steps/basic_info_step';
 import ProductDetailsStep from './steps/product_details_step';
-import VideoInformationStep from './steps/video_information_step';
 import ContentRequirementsStep from './steps/content_requirements_step';
 import DeliveryTimelineStep from './steps/delivery_timeline_step';
 import FinalPreviewStep from './steps/final_preview_step';
@@ -26,33 +25,28 @@ const STEP_FLOW: StepDefinition[] = [
       'product_description',
       'product_name',
       'target_audience',
+      'product_vibe',
+      // Conditional questions that may appear based on answers
       'main_problem',
-      'user_access',
       'differentiator',
       'current_stage',
-      'product_vibe',
       'primary_goal',
     ],
   },
   {
     id: 'product_details',
     label: 'Product Details',
-    questionIds: ['product_link', 'product_selling_points'],
-  },
-  {
-    id: 'video_information',
-    label: 'Video Information',
-    questionIds: ['platform', 'aspect_ratio', 'shipping_product', 'creator_stipend'],
+    questionIds: ['product_selling_points'],
   },
   {
     id: 'content_requirements',
     label: 'Content Requirements',
-    questionIds: ['video_overview', 'video_opener', 'scene_1', 'scene_2', 'video_ending', 'references'],
+    questionIds: ['video_overview', 'video_opener', 'scene_1', 'scene_2', 'video_ending'],
   },
   {
     id: 'delivery_timeline',
     label: 'Delivery & Timeline',
-    questionIds: ['adlib_rules', 'wardrobe', 'creative_direction', 'legal_disclaimers'],
+    questionIds: ['wardrobe', 'creative_direction', 'legal_disclaimers'],
   },
   {
     id: 'final_preview',
@@ -123,17 +117,6 @@ export default function FormWizard() {
         return (
           <ProductDetailsStep
             sellingPointsQuestion={QUESTION_MAP['product_selling_points']}
-            linkQuestion={QUESTION_MAP['product_link']}
-            onPrevious={() => updateStep(activeStep - 1)}
-            onNext={() => updateStep(activeStep + 1)}
-            isActive
-          />
-        );
-      case 'video_information':
-        return (
-          <VideoInformationStep
-            questionIds={currentStep.questionIds}
-            questionMap={QUESTION_MAP}
             onPrevious={() => updateStep(activeStep - 1)}
             onNext={() => updateStep(activeStep + 1)}
             isActive
