@@ -14,6 +14,11 @@ import {
   AnswerSuggestionRequestDto,
   AnswerSuggestionResponseDto,
 } from "./dto/answer_suggestion.dto";
+import {
+  FollowUpQuestionsRequestDto,
+  FollowUpQuestionsResponseDto,
+  FollowUpQuestionBlock,
+} from "./dto/follow_up_questions.dto";
 
 @Injectable()
 export class AiService {
@@ -281,6 +286,165 @@ Generate diverse, realistic, professional suggestions now:`;
       console.error("Error generating suggestions:", error);
       throw new HttpException(
         "Failed to generate suggestions",
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async generateFollowUpQuestions(
+    dto: FollowUpQuestionsRequestDto,
+  ): Promise<FollowUpQuestionsResponseDto> {
+    try {
+      const previousAnswers = dto.previousAnswers || [];
+      const answeredQuestionIds = dto.answeredQuestionIds || [];
+
+      const answeredText = previousAnswers
+        .map(
+          (item, index) =>
+            `${index + 1}. Question: ${item.question}\nAnswer: ${item.answer}`,
+        )
+        .join("\n\n");
+
+      const answeredQuestionsList = previousAnswers
+        .map((item) => item.question)
+        .join(" | ");
+
+      const answeredIdsList = answeredQuestionIds.join(" | ");
+
+      const prompt = `You are a strategic UGC brief assistant. Use the existing Step 1 answers to discover missing details and ask ONLY new follow-up questions that deepen understanding of the product and campaign.
+
+Existing answers (Step 1):
+${answeredText || "No answers yet."}
+
+Rules:
+- Do NOT repeat or rephrase any question that has already been answered: ${
+        answeredQuestionsList || "None"
+      }
+- Do NOT repeat questions that match these IDs (Step 1 or Step 2): ${
+        answeredIdsList || "None"
+      }
+- Focus on filling information gaps. Consider (pick what's missing only): product purpose/deeper problem, target audience specifics, pricing/monetization, competitors/differentiators, user experience or tone, product features not covered, brand personality/storytelling angle, launch goals not mentioned.
+- Every output item MUST be a question (no answers).
+- Each question MUST include 3-5 SHORT suggestion ideas (2-6 words) that are relevant to the existing answers and feel like realistic placeholder ideas.
+- Suggestions must be simple, varied, and contextual - avoid long phrases or repeating the exact question.
+- Questions should feel natural and human, focusing on details the user has not provided yet.
+- Keep total follow-up questions between 3 and 6.
+
+Output STRICTLY as JSON with this shape:
+{
+  "questions": [
+    {
+      "id": "q_extra_1",
+      "label": "What tone or personality should your product communicate?",
+      "placeholder": "Describe the tone...",
+      "type": "select",
+      "suggestions": ["Friendly", "Professional", "Minimal", "Playful"],
+      "answer": ""
+    }
+  ]
+}
+No extra fields, no explanations, no prose outside JSON.`;
+
+      const completion = await this.openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You generate concise follow-up questions to fill information gaps for a UGC brief. You only output JSON, never prose. Each question includes 3-5 short, contextual suggestion ideas. You never answer the questions.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.6,
+        max_tokens: 800,
+        response_format: { type: "json_object" },
+      });
+
+      const content = completion.choices[0]?.message?.content || "{}";
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(content);
+      } catch (error) {
+        console.error("Failed to parse follow-up question response:", content);
+        throw new HttpException(
+          "Invalid response format from AI",
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      const questions = Array.isArray(parsed?.questions)
+        ? parsed.questions
+        : [];
+
+      const normalized: FollowUpQuestionBlock[] = questions
+        .map((item: any, index: number) => {
+          const rawQuestion =
+            typeof item?.question === "string"
+              ? item.question.trim()
+              : typeof item?.label === "string"
+              ? item.label.trim()
+              : undefined;
+
+          const questionId =
+            typeof item?.id === "string" && item.id.trim().length > 0
+              ? item.id.trim()
+              : `q_extra_${index + 1}`;
+
+          const placeholder =
+            typeof item?.placeholder === "string" && item.placeholder.trim()
+              ? item.placeholder.trim()
+              : "Type your answer...";
+
+          const type =
+            item?.type === "select" || item?.type === "text"
+              ? item.type
+              : "text";
+
+          const suggestionList = Array.isArray(item?.suggestions)
+            ? item.suggestions
+            : [];
+
+          const uniqueSuggestions = Array.from(
+            new Set(
+              suggestionList
+                .map((s) => (typeof s === "string" ? s.trim() : ""))
+                .filter((s) => s.length > 0),
+            ),
+          ).slice(0, 5);
+
+          return {
+            id: questionId,
+            label: rawQuestion,
+            placeholder,
+            type,
+            suggestions: uniqueSuggestions,
+            answer: "",
+          };
+        })
+        .filter(
+          (item) =>
+            item.label &&
+            item.suggestions &&
+            item.suggestions.length >= 3,
+        )
+        .slice(0, 6);
+
+      if (!normalized.length) {
+        throw new HttpException(
+          "Failed to generate follow-up questions",
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      return { questions: normalized };
+    } catch (error) {
+      console.error("Error generating follow-up questions:", error);
+      throw new HttpException(
+        "Failed to generate follow-up questions",
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }

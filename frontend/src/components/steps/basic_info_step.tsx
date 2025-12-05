@@ -9,7 +9,12 @@ import PrimaryButton from '@/components/ui/primary_button';
 import SecondaryButton from '@/components/ui/secondary_button';
 import TextInput from '@/components/ui/text_input';
 import TagChip from '@/components/ui/tag_chip';
-import { getSuggestions, PreviousAnswer } from '@/services/api';
+import {
+  getSuggestions,
+  PreviousAnswer,
+  generateFollowUpQuestions,
+  FollowUpQuestionBlock,
+} from '@/services/api';
 
 interface BasicInfoStepProps {
   questionIds: string[];
@@ -124,6 +129,11 @@ export default function BasicInfoStep({ questionIds, questionMap, onNext, onGene
   const [inputError, setInputError] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [followUpQuestions, setFollowUpQuestions] = useState<FollowUpQuestionBlock[]>([]);
+  const [followUpInputValue, setFollowUpInputValue] = useState('');
+  const [followUpInputError, setFollowUpInputError] = useState('');
+  const [moreQuestionsLoading, setMoreQuestionsLoading] = useState(false);
+  const [moreQuestionsError, setMoreQuestionsError] = useState('');
 
   const answerMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -225,6 +235,22 @@ export default function BasicInfoStep({ questionIds, questionMap, onNext, onGene
     [answerMap, flowSequence, questionMap],
   );
 
+  const allPreviousAnswers = useMemo(
+    () =>
+      answers
+        .map((item) => {
+          const title = questionMap[item.questionId]?.title || item.questionTitle || item.questionId;
+          return {
+            question: title,
+            answer: item.answerValue,
+          } as PreviousAnswer;
+        })
+        .filter((entry) => Boolean(entry.question) && Boolean(entry.answer)),
+    [answers, questionMap],
+  );
+
+  const answeredQuestionIds = useMemo(() => answers.map((item) => item.questionId), [answers]);
+
   useEffect(() => {
     setInputValue('');
     setInputError('');
@@ -276,6 +302,23 @@ export default function BasicInfoStep({ questionIds, questionMap, onNext, onGene
     };
   }, [activeQuestion?.id, activeQuestion?.aiPrompt, activeQuestion?.prompt, activeQuestion?.fallbackSuggestions, previousAnswers, isActive]);
 
+  useEffect(() => {
+    setFollowUpQuestions([]);
+    setMoreQuestionsError('');
+  }, [previousAnswers]);
+
+  const activeFollowUp = useMemo(
+    () => followUpQuestions.find((item) => !normalizeText(item.answer || '')),
+    [followUpQuestions],
+  );
+
+  const followUpComplete = followUpQuestions.length > 0 && !activeFollowUp;
+
+  useEffect(() => {
+    setFollowUpInputValue('');
+    setFollowUpInputError('');
+  }, [activeFollowUp?.id]);
+
   const handleSubmit = useCallback(
     (rawValue?: string) => {
       if (!activeQuestion) return;
@@ -301,6 +344,64 @@ export default function BasicInfoStep({ questionIds, questionMap, onNext, onGene
     },
     [handleSubmit],
   );
+
+  const handleFollowUpSubmit = useCallback(
+    (rawValue?: string) => {
+      if (!activeFollowUp) return;
+      const value = normalizeText((rawValue ?? followUpInputValue).trim());
+      if (!value) {
+        setFollowUpInputError('Please enter a short answer.');
+        return;
+      }
+      setAnswer(activeFollowUp.id, activeFollowUp.label, value);
+      setFollowUpQuestions((list) =>
+        list.map((item) =>
+          item.id === activeFollowUp.id ? { ...item, answer: value } : item,
+        ),
+      );
+      setFollowUpInputValue('');
+      setFollowUpInputError('');
+    },
+    [activeFollowUp, followUpInputValue, setAnswer],
+  );
+
+  const handleFollowUpKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        handleFollowUpSubmit();
+      }
+    },
+    [handleFollowUpSubmit],
+  );
+
+  const handleGenerateMoreQuestions = useCallback(async () => {
+    if (!isComplete || moreQuestionsLoading) return;
+    setMoreQuestionsError('');
+    setMoreQuestionsLoading(true);
+    setFollowUpInputValue('');
+    setFollowUpInputError('');
+    try {
+      const questions = await generateFollowUpQuestions({
+        previousAnswers: allPreviousAnswers,
+        answeredQuestionIds,
+      });
+      setFollowUpQuestions(
+        questions.map((q, index) => ({
+          ...q,
+          id: q.id || `q_extra_${index + 1}`,
+          answer: '',
+        })),
+      );
+      onGenerateMoreQuestions();
+    } catch (error: any) {
+      const message =
+        error?.message || 'Unable to generate more questions right now.';
+      setMoreQuestionsError(message);
+    } finally {
+      setMoreQuestionsLoading(false);
+    }
+  }, [isComplete, moreQuestionsLoading, allPreviousAnswers, answeredQuestionIds, onGenerateMoreQuestions]);
 
   const displaySuggestions = suggestions.length
     ? suggestions
@@ -368,14 +469,74 @@ export default function BasicInfoStep({ questionIds, questionMap, onNext, onGene
 
       {isComplete && isActive && (
         <div className="flex flex-col gap-4 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <PrimaryButton type="button" onClick={onGenerateMoreQuestions} className="!text-sm w-40">
-            Generate More Questions
+          <PrimaryButton
+            type="button"
+            onClick={handleGenerateMoreQuestions}
+            className="!text-sm w-40"
+            disabled={moreQuestionsLoading}
+          >
+            {moreQuestionsLoading ? 'Generating...' : 'Generate More Questions'}
           </PrimaryButton>
           <div className="text-right">
             <PrimaryButton type="button" onClick={onNext} className="w-auto">
               Next →
             </PrimaryButton>
           </div>
+        </div>
+      )}
+
+      {isActive && (followUpQuestions.length > 0 || moreQuestionsLoading || moreQuestionsError) && (
+        <div className="rounded-[28px] border border-[var(--border)] bg-white p-6 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <p className="text-lg font-semibold text-[var(--text-dark)]">Follow-up questions to fill gaps</p>
+            {moreQuestionsLoading && (
+              <p className="text-sm text-[var(--text-muted)]">Generating...</p>
+            )}
+          </div>
+
+          {moreQuestionsError && (
+            <p className="text-xs font-semibold text-[#D14343]">{moreQuestionsError}</p>
+          )}
+
+          {activeFollowUp ? (
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-base font-semibold text-[var(--text-dark)]">{activeFollowUp.label}</p>
+                <p className="text-xs text-[var(--text-muted)]">New question · {activeFollowUp.type === 'select' ? 'choose an option or type' : 'type an answer'}</p>
+              </div>
+
+              <div className="space-y-2">
+                <TextInput
+                  value={followUpInputValue}
+                  onChange={(event) => setFollowUpInputValue(event.target.value)}
+                  onKeyDown={handleFollowUpKeyDown}
+                  placeholder={activeFollowUp.placeholder || 'Type your answer...'}
+                  autoFocus
+                />
+                <p className="text-xs text-[var(--text-muted)]">Keep it to one quick phrase · Press Enter to save.</p>
+                {followUpInputError && <p className="text-xs font-semibold text-[#D14343]">{followUpInputError}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">AI suggestions</p>
+                <div className="flex flex-wrap gap-2">
+                  {activeFollowUp.suggestions.length > 0 ? (
+                    activeFollowUp.suggestions.map((suggestion) => (
+                      <TagChip key={`${activeFollowUp.id}-${suggestion}`} onClick={() => handleFollowUpSubmit(suggestion)}>
+                        {suggestion}
+                      </TagChip>
+                    ))
+                  ) : (
+                    <p className="text-sm text-[var(--text-muted)]">No suggestions right now.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : followUpComplete ? (
+            <p className="text-sm text-[var(--text-muted)]">All follow-up questions answered.</p>
+          ) : moreQuestionsLoading ? (
+            <p className="text-sm text-[var(--text-muted)]">Generating tailored follow-up questions...</p>
+          ) : null}
         </div>
       )}
     </UiCard>

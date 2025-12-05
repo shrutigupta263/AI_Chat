@@ -100,6 +100,24 @@ export interface AnswerSuggestionResponse {
   suggestion: string;
 }
 
+export interface FollowUpQuestionBlock {
+  id: string;
+  label: string;
+  placeholder: string;
+  type: 'text' | 'select';
+  suggestions: string[];
+  answer: string;
+}
+
+export interface FollowUpQuestionsRequest {
+  previousAnswers: PreviousAnswer[];
+  answeredQuestionIds?: string[];
+}
+
+export interface FollowUpQuestionsResponse {
+  questions: FollowUpQuestionBlock[];
+}
+
 export const getSuggestions = async (
   data: SuggestionsRequest
 ): Promise<string[]> => {
@@ -113,6 +131,23 @@ export const getSuggestions = async (
       throw new Error('Invalid response from server');
     }
     return response.data.suggestions || [];
+  } catch (error: any) {
+    // Error is already handled by interceptor, just re-throw
+    throw error;
+  }
+};
+
+export const generateFollowUpQuestions = async (
+  data: FollowUpQuestionsRequest
+): Promise<FollowUpQuestionBlock[]> => {
+  try {
+    console.log('Fetching follow-up questions from:', `${API_URL}/ai/follow-up-questions`);
+    console.log('Request data:', data);
+    const response = await api.post<FollowUpQuestionsResponse>('/ai/follow-up-questions', data);
+    if (!response.data || !Array.isArray(response.data.questions)) {
+      throw new Error('Invalid response from server');
+    }
+    return response.data.questions;
   } catch (error: any) {
     // Error is already handled by interceptor, just re-throw
     throw error;

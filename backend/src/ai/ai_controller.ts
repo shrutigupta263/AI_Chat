@@ -13,6 +13,10 @@ import {
   AnswerSuggestionRequestDto,
   AnswerSuggestionResponseDto,
 } from "./dto/answer_suggestion.dto";
+import {
+  FollowUpQuestionsRequestDto,
+  FollowUpQuestionsResponseDto,
+} from "./dto/follow_up_questions.dto";
 
 @Controller("ai")
 export class AiController {
@@ -23,6 +27,13 @@ export class AiController {
     @Body() dto: SuggestionsRequestDto,
   ): Promise<SuggestionsResponseDto> {
     return this.aiService.getSuggestions(dto);
+  }
+
+  @Post("follow-up-questions")
+  async generateFollowUpQuestions(
+    @Body() dto: FollowUpQuestionsRequestDto,
+  ): Promise<FollowUpQuestionsResponseDto> {
+    return this.aiService.generateFollowUpQuestions(dto);
   }
 
   @Post("generate-summary")
