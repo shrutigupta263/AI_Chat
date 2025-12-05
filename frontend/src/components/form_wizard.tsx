@@ -171,9 +171,6 @@ export default function FormWizard() {
               ← Back to Admin
             </button>
           </div>
-          <div className="flex h-11 w-11 items-center justify-center rounded-full ugc-avatar text-sm font-semibold">
-            SG
-          </div>
         </div>
       </div>
 

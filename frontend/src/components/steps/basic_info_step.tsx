@@ -309,9 +309,6 @@ export default function BasicInfoStep({ questionIds, questionMap, onNext, isActi
       <div className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">Step 1 · Basics</p>
         <h2 className="text-[22px] font-semibold text-[var(--text-dark)]">Build your intro in one card</h2>
-        <p className="text-sm text-[var(--text-muted)]">
-          Answer each prompt to grow the paragraph. Keep responses short and punchy.
-        </p>
       </div>
 
       <div className="space-y-6">
