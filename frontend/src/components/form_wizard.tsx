@@ -110,6 +110,7 @@ export default function FormWizard() {
             questionIds={currentStep.questionIds}
             questionMap={QUESTION_MAP}
             onNext={() => updateStep(activeStep + 1)}
+            onGenerateMoreQuestions={() => {}}
             isActive
           />
         );

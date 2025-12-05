@@ -6,6 +6,7 @@ import { Question } from '@/config/questions';
 import { useFormStore } from '@/store/form_store';
 import UiCard from '@/components/ui/ui_card';
 import PrimaryButton from '@/components/ui/primary_button';
+import SecondaryButton from '@/components/ui/secondary_button';
 import TextInput from '@/components/ui/text_input';
 import TagChip from '@/components/ui/tag_chip';
 import { getSuggestions, PreviousAnswer } from '@/services/api';
@@ -14,6 +15,7 @@ interface BasicInfoStepProps {
   questionIds: string[];
   questionMap: Record<string, Question>;
   onNext: () => void;
+  onGenerateMoreQuestions: () => void;
   isActive: boolean;
 }
 
@@ -116,7 +118,7 @@ const shortenSuggestion = (value: string) => {
   return words.join(' ');
 };
 
-export default function BasicInfoStep({ questionIds, questionMap, onNext, isActive }: BasicInfoStepProps) {
+export default function BasicInfoStep({ questionIds, questionMap, onNext, onGenerateMoreQuestions, isActive }: BasicInfoStepProps) {
   const { answers, setAnswer } = useFormStore();
   const [inputValue, setInputValue] = useState('');
   const [inputError, setInputError] = useState('');
@@ -366,10 +368,14 @@ export default function BasicInfoStep({ questionIds, questionMap, onNext, isActi
 
       {isComplete && isActive && (
         <div className="flex flex-col gap-4 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[var(--text-muted)]">Basics done. Continue to the next step.</p>
-          <PrimaryButton type="button" onClick={onNext}>
-            Next →
+          <PrimaryButton type="button" onClick={onGenerateMoreQuestions} className="!text-sm w-40">
+            Generate More Questions
           </PrimaryButton>
+          <div className="text-right">
+            <PrimaryButton type="button" onClick={onNext} className="w-auto">
+              Next →
+            </PrimaryButton>
+          </div>
         </div>
       )}
     </UiCard>
